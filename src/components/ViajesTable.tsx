@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Paperclip, AlertCircle, ArrowDownCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Paperclip, ArrowDownCircle } from 'lucide-react';
 import { Viaje, ViajeInsert, FiltrosViaje, EstadoDetraccion, TipoRegistro } from '@/types';
 import { BadgeEstado, ToggleDetraccion } from './BadgeEstado';
 import FiltroBarra from './FiltroBarra';
@@ -121,7 +121,7 @@ export default function ViajesTable() {
 
   const viajesReales  = viajes.filter((v) => v.tipo === 'viaje');
   const montoFletes   = viajesReales.reduce((s, v) => s + Number(v.monto), 0);
-  const detPendientes = viajesReales.filter((v) => v.estado === 'facturado' && v.detraccion === 'pendiente').length;
+  const detPendientes = viajesReales.filter((v) => v.detraccion === 'pendiente').length;
 
   const fmt = (d: string) => {
     if (!d || d.startsWith('1900')) return '—';
@@ -171,19 +171,6 @@ export default function ViajesTable() {
       {/* Filtros */}
       <FiltroBarra filtros={filtros} meses={meses} onChange={setFiltros} />
 
-      {/* Alerta detracciones */}
-      {!loading && detPendientes > 0 && (
-        <div className="flex items-center gap-3 px-5 py-3.5 text-sm anim-fade-in" style={{
-          borderRadius: 'var(--r-btn)', background: '#FFF8F5',
-          border: '1px solid rgba(207,69,0,.25)',
-        }}>
-          <AlertCircle size={15} style={{ color: 'var(--signal)', flexShrink: 0 }} />
-          <p style={{ color: '#7A2800', fontWeight: 450 }}>
-            <strong style={{ fontWeight: 600 }}>{detPendientes}</strong>{' '}
-            detracción{detPendientes !== 1 ? 'es' : ''} pendiente{detPendientes !== 1 ? 's' : ''} de pago a SUNAT.
-          </p>
-        </div>
-      )}
 
       {/* ── Tabla desktop ───────────────────────────────────── */}
       <div className="hidden sm:block card-stadium">
@@ -265,7 +252,7 @@ export default function ViajesTable() {
                         <td className="px-4 py-3.5">
                           {(isDeposito || isSaldo) ? '—' : (
                             <ToggleDetraccion detraccion={v.detraccion} viajeId={v.id}
-                              onToggle={handleToggle} loading={toggling === v.id} />
+                              descripcion={v.descripcion} onToggle={handleToggle} loading={toggling === v.id} />
                           )}
                         </td>
                         <td className="px-4 py-3.5 text-right">

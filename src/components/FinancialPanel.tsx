@@ -8,11 +8,11 @@ interface Finanzas {
   depositos_recibidos: number;
   saldo_anterior: number;
   balance_por_cobrar: number;
-  detraccion_pendiente_monto: number;
   detraccion_pendiente_importe: number;
-  detraccion_pagada_monto: number;
-  detraccion_pagada_importe: number;
+  viajes_hyo_sin_det: number;
+  viajes_puc_sin_det: number;
   viajes_sin_detraccion: number;
+  detraccion_pagada_importe: number;
 }
 
 function fmt(n: number) {
@@ -92,7 +92,10 @@ export default function FinancialPanel() {
           icon={<AlertTriangle size={12} style={{ color: 'var(--signal)', flexShrink: 0 }} />}
           eyebrow="Detracción debes"
           value={fmt(data.detraccion_pendiente_importe)}
-          sub={`4% de ${fmt(data.detraccion_pendiente_monto)} · ${data.viajes_sin_detraccion} viaje${data.viajes_sin_detraccion !== 1 ? 's' : ''}`}
+          sub={[
+            data.viajes_hyo_sin_det > 0 && `${data.viajes_hyo_sin_det} × S/40`,
+            data.viajes_puc_sin_det > 0 && `${data.viajes_puc_sin_det} × S/80`,
+          ].filter(Boolean).join(' + ')}
           accent="signal"
         />
       ) : (
