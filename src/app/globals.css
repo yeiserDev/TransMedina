@@ -1,26 +1,202 @@
 @import "tailwindcss";
+@import "@fontsource-variable/sofia-sans";
 
+/* ─── Mastercard-inspired Design System ─────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Canvas */
+  --canvas:        #F3F0EE;
+  --canvas-lifted: #FCFBFA;
+  --white:         #FFFFFF;
+
+  /* Ink */
+  --ink:           #141413;
+  --charcoal:      #262627;
+  --slate:         #696969;
+  --dust:          #D1CDC7;
+
+  /* Signal */
+  --signal:        #CF4500;
+  --signal-light:  #F37338;
+
+  /* Link */
+  --link:          #3860BE;
+
+  /* Radius scale — Mastercard skips 8-16px intentionally */
+  --r-btn:   20px;
+  --r-chip:  24px;
+  --r-hero:  40px;
+  --r-pill:  999px;
+
+  /* Shadows — atmospheric, never hard */
+  --shadow-float: rgba(0,0,0,.04) 0px 4px 24px 0px;
+  --shadow-card:  rgba(0,0,0,.08) 0px 24px 48px 0px;
+  --shadow-deep:  rgba(0,0,0,.25) 0px 70px 110px 0px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+* { box-sizing: border-box; }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html, body {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: 'Sofia Sans Variable', 'Sofia Sans', Arial, sans-serif;
+  font-weight: 450;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Eyebrow label — 14px / 700 / +4% tracking */
+.eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.56px;
+  text-transform: uppercase;
+  color: var(--slate);
+}
+.eyebrow::before {
+  content: '• ';
+  color: var(--signal-light);
+}
+
+/* Headline tightening */
+h1, h2, h3 {
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+/* Ink pill button */
+.btn-ink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--ink);
+  color: var(--canvas);
+  border: 1.5px solid var(--ink);
+  border-radius: var(--r-btn);
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+}
+.btn-ink:hover  { opacity: 0.88; }
+.btn-ink:active { transform: scale(0.98); }
+.btn-ink:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Outlined pill button */
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--white);
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+  border-radius: var(--r-btn);
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 450;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.btn-outline:hover  { background: var(--canvas); }
+.btn-outline:active { transform: scale(0.98); }
+
+/* Stadium card surface */
+.card-stadium {
+  background: var(--white);
+  border-radius: var(--r-hero);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+/* Pill badge */
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* Input field */
+.input-field {
+  width: 100%;
+  background: var(--canvas);
+  border: 1.5px solid rgba(20,20,19,.14);
+  border-radius: var(--r-btn);
+  padding: 10px 16px;
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: 450;
+  color: var(--ink);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  outline: none;
+}
+.input-field:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(20,20,19,.08);
+}
+.input-field::placeholder { color: var(--dust); }
+
+/* Scrollbar */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--dust); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--slate); }
+
+/* Animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes fadeOut {
+  from { opacity: 1; transform: translateY(0) scaleY(1); }
+  to   { opacity: 0; transform: translateY(-4px) scaleY(0.97); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.anim-fade-up   { animation: fadeUp   0.35s cubic-bezier(.25,.46,.45,.94) both; }
+.anim-fade-in   { animation: fadeIn   0.2s ease both; }
+.anim-scale-in  { animation: scaleIn  0.25s cubic-bezier(.34,1.2,.64,1) both; }
+.anim-fade-out  { animation: fadeOut  0.28s cubic-bezier(.25,.46,.45,.94) forwards; pointer-events: none; }
+
+/* Skeleton */
+.skeleton {
+  background: linear-gradient(90deg, #EAE7E4 25%, #DDD9D5 50%, #EAE7E4 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease infinite;
+  border-radius: var(--r-pill);
+}
+
+/* Ghost watermark */
+.ghost-text {
+  font-size: clamp(48px, 8vw, 96px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: #E8E2DA;
+  pointer-events: none;
+  user-select: none;
+  line-height: 1;
 }

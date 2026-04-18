@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-git --name transmedina)",
+      "Bash(npx create-next-app@latest transmedina --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-git)",
+      "Bash(npm audit *)",
+      "Bash(npm uninstall *)",
+      "Bash(openssl rand *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\yeise\\Downloads\\TransMedina\\src\\app\\api\\auth",
+      "c:\\Users\\yeise\\Downloads\\TransMedina\\src\\app\\api\\viajes"
+    ]
+  }
+}
