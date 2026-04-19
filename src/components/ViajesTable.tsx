@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Paperclip, ArrowDownCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Paperclip, ArrowDownCircle, ClipboardList, Copy, Check, X } from 'lucide-react';
 import { Viaje, ViajeInsert, FiltrosViaje, EstadoDetraccion, TipoRegistro } from '@/types';
 import { BadgeEstado, ToggleDetraccion } from './BadgeEstado';
 import FiltroBarra from './FiltroBarra';
@@ -22,6 +22,19 @@ function SkeletonRow() {
       ))}
     </tr>
   );
+}
+
+const fmtMoney = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`;
+
+function formatFactura(v: Viaje): string {
+  const esPuc = v.descripcion?.toLowerCase().includes('pucallpa');
+  const destino = esPuc ? 'Pucallpa' : 'Huancayo';
+  const monto = esPuc ? 2000 : 1000;
+  const guia = v.numero_guia ?? '—';
+  const fecha = v.fecha_traslado && !v.fecha_traslado.startsWith('1900')
+    ? format(new Date(v.fecha_traslado + 'T12:00:00'), 'dd/MM/yyyy')
+    : '—';
+  return `Factura a la empresa 'FART' con Ruc: 20509811424 por un servicio de flete de Lima a ${destino} por ${monto} Incluido IGV con la guía Transportista N° ${guia} con la fecha de ${fecha}`;
 }
 
 function KpiCard({ eyebrow, value, sub, warning }: {
@@ -53,6 +66,10 @@ export default function ViajesTable() {
   const [toggling, setToggling] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showFacturas, setShowFacturas] = useState(false);
+  const [facturasViajes, setFacturasViajes] = useState<Viaje[]>([]);
+  const [loadingFacturas, setLoadingFacturas] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const fetchViajes = useCallback(async () => {
     setLoading(true);
@@ -69,6 +86,45 @@ export default function ViajesTable() {
   useEffect(() => { fetchViajes(); }, [fetchViajes]);
 
   const meses = useMemo(() => Array.from(new Set(viajes.map((v) => v.mes))), [viajes]);
+
+  const hasFilters = !!(filtros.mes || filtros.estado || filtros.detraccion);
+
+  const ledgerMap = useMemo(() => {
+    if (hasFilters) return new Map<string, { before: number; after: number }>();
+    const sorted = [...viajes].sort((a, b) => {
+      const da = a.fecha_traslado?.startsWith('1900') ? '0000-00-00' : (a.fecha_traslado ?? '');
+      const db = b.fecha_traslado?.startsWith('1900') ? '0000-00-00' : (b.fecha_traslado ?? '');
+      if (da !== db) return da.localeCompare(db);
+      if (a.tipo === 'deposito' && b.tipo !== 'deposito') return 1;
+      if (b.tipo === 'deposito' && a.tipo !== 'deposito') return -1;
+      return 0;
+    });
+    let running = 0;
+    const map = new Map<string, { before: number; after: number }>();
+    for (const v of sorted) {
+      const before = running;
+      if (v.tipo === 'deposito') running -= Number(v.monto);
+      else running += Number(v.monto);
+      map.set(v.id, { before, after: running });
+    }
+    return map;
+  }, [viajes, hasFilters]);
+
+  const openFacturas = async () => {
+    setShowFacturas(true);
+    setLoadingFacturas(true);
+    const res = await fetch('/api/viajes?estado=pendiente');
+    const data = await res.json();
+    setFacturasViajes((Array.isArray(data) ? data : []).filter((v: Viaje) => v.tipo === 'viaje'));
+    setLoadingFacturas(false);
+  };
+
+  const copyFacturas = async () => {
+    const text = facturasViajes.map(formatFactura).join('\n\n');
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const openForm = (tipo: TipoRegistro) => {
     setNewTipo(tipo);
@@ -139,6 +195,10 @@ export default function ViajesTable() {
           <h1 className="text-4xl" style={{ fontWeight: 500, letterSpacing: '-0.02em' }}>Viajes</h1>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={openFacturas} className="btn-outline" style={{ gap: 6 }}>
+            <ClipboardList size={14} />
+            Facturas pendientes
+          </button>
           <button onClick={() => openForm('deposito')} className="btn-outline" style={{ gap: 6 }}>
             <ArrowDownCircle size={14} />
             Depósito
@@ -215,11 +275,24 @@ export default function ViajesTable() {
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = hoverBg}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = rowBg ?? ''}
                       >
-                        <td className="px-4 py-3.5 text-xs" style={{ color: 'var(--slate)', fontWeight: 450 }}>
-                          {fmt(v.fecha_carga)}
+                        <td className="px-4 py-3.5">
+                          <span className="text-xs" style={{ color: 'var(--slate)', display: 'block', lineHeight: 1.2 }}>
+                            {fmt(v.fecha_carga)}
+                          </span>
                         </td>
-                        <td className="px-4 py-3.5 text-xs" style={{ color: 'var(--charcoal)', fontWeight: 500 }}>
-                          {fmt(v.fecha_traslado)}
+                        <td className="px-4 py-3.5">
+                          <span style={{
+                            display: 'inline-block',
+                            fontWeight: 600,
+                            fontSize: 12,
+                            letterSpacing: '-0.01em',
+                            color: 'var(--ink)',
+                            background: 'rgba(20,20,19,.06)',
+                            borderRadius: 6,
+                            padding: '2px 7px',
+                          }}>
+                            {fmt(v.fecha_traslado)}
+                          </span>
                         </td>
                         <td className="px-4 py-3.5">
                           {isDeposito ? (
@@ -302,6 +375,21 @@ export default function ViajesTable() {
                           </div>
                         </td>
                       </tr>
+                      {isDeposito && !hasFilters && ledgerMap.get(v.id) && (() => {
+                        const lp = ledgerMap.get(v.id)!;
+                        return (
+                          <tr key={`${v.id}-ctx`} style={{ background: '#E8FFF0' }}>
+                            <td colSpan={10} style={{ padding: '0 16px 10px 108px', fontSize: 11, color: '#166534' }}>
+                              Nos debían <strong>{fmtMoney(lp.before)}</strong>
+                              {' · depositaron '}<strong>{fmtMoney(Number(v.monto))}</strong>
+                              {' → '}
+                              {lp.after > 0
+                                ? <>quedan <strong>{fmtMoney(lp.after)}</strong></>
+                                : <strong>sin deuda ✓</strong>}
+                            </td>
+                          </tr>
+                        );
+                      })()}
                       {expandedId === v.id && (
                         <tr key={`${v.id}-docs`}>
                           <td colSpan={10} className="px-8 py-4"
@@ -354,6 +442,18 @@ export default function ViajesTable() {
                           Depósito recibido
                         </span>
                         <p className="text-xs mt-1" style={{ color: 'var(--slate)' }}>{fmt(v.fecha_traslado)}</p>
+                        {!hasFilters && ledgerMap.get(v.id) && (() => {
+                          const lp = ledgerMap.get(v.id)!;
+                          return (
+                            <p className="text-xs mt-1" style={{ color: '#166534', fontWeight: 450 }}>
+                              Debían <strong style={{ fontWeight: 600 }}>{fmtMoney(lp.before)}</strong>
+                              {' → '}
+                              {lp.after > 0
+                                ? <>quedan <strong style={{ fontWeight: 600 }}>{fmtMoney(lp.after)}</strong></>
+                                : <strong style={{ fontWeight: 600 }}>sin deuda ✓</strong>}
+                            </p>
+                          );
+                        })()}
                       </>
                     ) : isSaldo ? (
                       <p className="font-semibold text-sm" style={{ color: '#92400E', letterSpacing: '-0.01em' }}>
@@ -431,6 +531,59 @@ export default function ViajesTable() {
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditViaje(undefined); }}
         />
+      )}
+
+      {showFacturas && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(14,14,13,.72)' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowFacturas(false); }}>
+          <div className="w-full max-w-2xl flex flex-col rounded-[32px] overflow-hidden"
+            style={{ background: 'var(--white)', boxShadow: '0 24px 64px rgba(0,0,0,.22)', maxHeight: '80vh' }}>
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
+              <div>
+                <p className="eyebrow mb-1">Para el contador</p>
+                <h2 style={{ fontWeight: 700, fontSize: 20, letterSpacing: '-0.025em' }}>Facturas pendientes</h2>
+              </div>
+              <button onClick={() => setShowFacturas(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                style={{ background: 'var(--canvas)', color: 'var(--slate)' }}>
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Lista */}
+            <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-3">
+              {loadingFacturas ? (
+                <div className="space-y-2 py-4">
+                  {[1,2,3].map(i => <div key={i} className="skeleton rounded-2xl" style={{ height: 72 }} />)}
+                </div>
+              ) : facturasViajes.length === 0 ? (
+                <p className="text-sm py-8 text-center" style={{ color: 'var(--slate)' }}>
+                  Sin viajes pendientes de facturación
+                </p>
+              ) : (
+                facturasViajes.map(v => (
+                  <div key={v.id} className="p-4 rounded-2xl text-sm leading-relaxed"
+                    style={{ background: 'var(--canvas)', color: 'var(--ink)', fontFamily: 'monospace', fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    {formatFactura(v)}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            {!loadingFacturas && facturasViajes.length > 0 && (
+              <div className="px-6 py-4 shrink-0" style={{ borderTop: '1px solid rgba(20,20,19,.08)' }}>
+                <button onClick={copyFacturas} className="btn-ink w-full justify-center" style={{ gap: 8 }}>
+                  {copied ? <Check size={15} /> : <Copy size={15} />}
+                  {copied ? '¡Copiado!' : `Copiar todo (${facturasViajes.length} factura${facturasViajes.length !== 1 ? 's' : ''})`}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

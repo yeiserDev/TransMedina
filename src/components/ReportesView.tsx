@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Download, FileSpreadsheet, TrendingUp, ArrowDownCircle, BookOpen } from 'lucide-react';
+import { Download, FileSpreadsheet, TrendingUp, ArrowDownCircle, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import { Viaje } from '@/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -32,6 +32,7 @@ export default function ReportesView() {
   const [transactions, setTransactions] = useState<Viaje[]>([]);
   const [loadingLedger, setLoadingLedger] = useState(true);
   const [descargando, setDescargando] = useState<string | null>(null);
+  const [desgloseOpen, setDesgloseOpen] = useState(false);
 
   useEffect(() => {
     fetch('/api/reportes?tipo=resumen')
@@ -47,7 +48,10 @@ export default function ReportesView() {
     const sorted = [...transactions].sort((a, b) => {
       const da = a.fecha_traslado.startsWith('1900') ? '0000-00-00' : a.fecha_traslado;
       const db = b.fecha_traslado.startsWith('1900') ? '0000-00-00' : b.fecha_traslado;
-      return da.localeCompare(db);
+      if (da !== db) return da.localeCompare(db);
+      if (a.tipo === 'deposito' && b.tipo !== 'deposito') return 1;
+      if (b.tipo === 'deposito' && a.tipo !== 'deposito') return -1;
+      return 0;
     });
     let running = 0;
     return sorted.map(v => {
@@ -145,10 +149,15 @@ export default function ReportesView() {
         </div>
       ) : (
         <div className="card-stadium overflow-hidden">
-          <div className="px-6 py-4" style={{ borderBottom: '1px solid rgba(20,20,19,.08)', background: 'var(--canvas-lifted)' }}>
+          <button
+            className="w-full flex items-center justify-between px-6 py-4 transition-colors duration-100"
+            style={{ borderBottom: desgloseOpen ? '1px solid rgba(20,20,19,.08)' : 'none', background: 'var(--canvas-lifted)', cursor: 'pointer' }}
+            onClick={() => setDesgloseOpen(o => !o)}
+          >
             <p className="eyebrow">Desglose mensual</p>
-          </div>
-          <div>
+            {desgloseOpen ? <ChevronUp size={14} style={{ color: 'var(--slate)' }} /> : <ChevronDown size={14} style={{ color: 'var(--slate)' }} />}
+          </button>
+          {desgloseOpen && <div>
             {resumen.map((r, idx) => {
               const pct = Math.round((r.monto / maxMonto) * 100);
               return (
@@ -193,7 +202,7 @@ export default function ReportesView() {
                 </div>
               );
             })}
-          </div>
+          </div>}
         </div>
       )}
 
@@ -325,6 +334,22 @@ export default function ReportesView() {
                     </span>
                   </div>
                 </div>
+
+                {/* Detalle depósito */}
+                {isDeposito && (
+                  <div className="hidden sm:flex items-center gap-2 mt-2 text-xs" style={{ paddingLeft: 90 + 8, color: 'var(--slate)', fontWeight: 450 }}>
+                    <span>Nos debían <strong style={{ color: 'var(--ink)', fontWeight: 600 }}>{fmtMoney(prevBalance)}</strong></span>
+                    <span style={{ opacity: 0.4 }}>·</span>
+                    <span>depositaron <strong style={{ color: '#16A34A', fontWeight: 600 }}>{fmtMoney(abono)}</strong></span>
+                    <span style={{ opacity: 0.4 }}>→</span>
+                    <span>
+                      {balance > 0
+                        ? <>nos deben <strong style={{ color: 'var(--ink)', fontWeight: 600 }}>{fmtMoney(balance)}</strong></>
+                        : <strong style={{ color: '#16A34A', fontWeight: 600 }}>sin deuda ✓</strong>
+                      }
+                    </span>
+                  </div>
+                )}
 
                 {/* Mobile layout */}
                 <div className="sm:hidden">
