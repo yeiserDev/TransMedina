@@ -7,8 +7,6 @@ function esPucallpa(descripcion: string): boolean {
 }
 
 export async function GET() {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const supabase = await createAdminClient();
   const { data, error } = await supabase

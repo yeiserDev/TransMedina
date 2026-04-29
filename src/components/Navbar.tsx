@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { signOut, useSession } from 'next-auth/react';
-import { Truck, BarChart2, LogOut, Menu, X } from 'lucide-react';
+import { signIn, signOut, useSession } from 'next-auth/react';
+import { Truck, LogOut, Menu, X, Lock } from 'lucide-react';
 import { useState } from 'react';
 
 const navLinks = [
@@ -65,38 +65,42 @@ export default function Navbar() {
             })}
           </div>
 
-          {/* Right — user + logout */}
+          {/* Right — admin indicator or login */}
           <div className="hidden sm:flex items-center gap-3">
-            {session?.user?.image && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={session.user.image}
-                alt="avatar"
-                className="w-7 h-7 rounded-full"
-                style={{ border: '1.5px solid var(--dust)' }}
-              />
+            {session ? (
+              <>
+                {session.user?.image && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={session.user.image}
+                    alt="avatar"
+                    className="w-7 h-7 rounded-full"
+                    style={{ border: '1.5px solid var(--dust)' }}
+                  />
+                )}
+                <button
+                  onClick={() => signOut({ callbackUrl: '/' })}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs transition-all duration-150"
+                  style={{ borderRadius: 'var(--r-pill)', color: 'var(--slate)', fontWeight: 450, border: '1px solid transparent' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(20,20,19,.15)'; (e.currentTarget as HTMLElement).style.color = 'var(--signal)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--slate)'; }}
+                >
+                  <LogOut size={13} />
+                  Salir
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => signIn('google', { callbackUrl: '/' })}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs transition-all duration-150"
+                style={{ borderRadius: 'var(--r-pill)', color: 'var(--slate)', fontWeight: 450, border: '1px solid rgba(20,20,19,.12)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(20,20,19,.25)'; (e.currentTarget as HTMLElement).style.color = 'var(--ink)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(20,20,19,.12)'; (e.currentTarget as HTMLElement).style.color = 'var(--slate)'; }}
+              >
+                <Lock size={12} />
+                Admin
+              </button>
             )}
-            <button
-              onClick={() => signOut({ callbackUrl: '/login' })}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs transition-all duration-150"
-              style={{
-                borderRadius: 'var(--r-pill)',
-                color: 'var(--slate)',
-                fontWeight: 450,
-                border: '1px solid transparent',
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(20,20,19,.15)';
-                (e.currentTarget as HTMLElement).style.color = 'var(--signal)';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.borderColor = 'transparent';
-                (e.currentTarget as HTMLElement).style.color = 'var(--slate)';
-              }}
-            >
-              <LogOut size={13} />
-              Salir
-            </button>
           </div>
 
           {/* Mobile hamburger */}
@@ -138,14 +142,25 @@ export default function Navbar() {
               </Link>
             ))}
             <div style={{ height: '1px', background: 'rgba(20,20,19,.08)', margin: '4px 0' }} />
-            <button
-              onClick={() => signOut({ callbackUrl: '/login' })}
-              className="flex items-center gap-2 px-4 py-3 text-sm w-full"
-              style={{ borderRadius: 'var(--r-btn)', color: 'var(--signal)', fontWeight: 450 }}
-            >
-              <LogOut size={14} />
-              Cerrar sesión
-            </button>
+            {session ? (
+              <button
+                onClick={() => signOut({ callbackUrl: '/' })}
+                className="flex items-center gap-2 px-4 py-3 text-sm w-full"
+                style={{ borderRadius: 'var(--r-btn)', color: 'var(--signal)', fontWeight: 450 }}
+              >
+                <LogOut size={14} />
+                Cerrar sesión
+              </button>
+            ) : (
+              <button
+                onClick={() => signIn('google', { callbackUrl: '/' })}
+                className="flex items-center gap-2 px-4 py-3 text-sm w-full"
+                style={{ borderRadius: 'var(--r-btn)', color: 'var(--slate)', fontWeight: 450 }}
+              >
+                <Lock size={14} />
+                Acceso administrador
+              </button>
+            )}
           </div>
         )}
       </div>

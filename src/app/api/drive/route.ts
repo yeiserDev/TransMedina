@@ -5,7 +5,9 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session?.accessToken) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  if (!session?.accessToken) {
+    return NextResponse.json({ error: 'Sesión expirada — vuelve a iniciar sesión' }, { status: 401 });
+  }
 
   const formData = await req.formData();
   const file = formData.get('file') as File;
@@ -16,21 +18,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Faltan parámetros' }, { status: 400 });
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const driveId = await uploadFileToDrive(
-    session.accessToken,
-    buffer,
-    file.name,
-    file.type,
-    tipo
-  );
+  if (!process.env.GOOGLE_DRIVE_FOLDER_ID) {
+    return NextResponse.json({ error: 'GOOGLE_DRIVE_FOLDER_ID no configurado' }, { status: 500 });
+  }
 
-  // Actualizar el viaje con el ID del archivo en Drive
-  const supabase = await createAdminClient();
-  const campo = tipo === 'guias' ? 'drive_id_guia' : 'drive_id_factura';
-  const { error } = await supabase.from('viajes').update({ [campo]: driveId }).eq('id', viajeId);
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const driveId = await uploadFileToDrive(
+      session.accessToken,
+      buffer,
+      file.name,
+      file.type,
+      tipo
+    );
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const supabase = await createAdminClient();
+    const campo = tipo === 'guias' ? 'drive_id_guia' : 'drive_id_factura';
+    const { error: dbError } = await supabase
+      .from('viajes')
+      .update({ [campo]: driveId })
+      .eq('id', viajeId);
 
-  return NextResponse.json({ driveId });
+    if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+
+    return NextResponse.json({ driveId });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[drive upload]', msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

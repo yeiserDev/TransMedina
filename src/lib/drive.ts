@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { Readable } from 'stream';
 
 export function getDriveClient(accessToken: string) {
   const auth = new google.auth.OAuth2();
@@ -50,8 +51,14 @@ export async function uploadFileToDrive(
     },
     media: {
       mimeType,
-      body: require('stream').Readable.from(file),
+      body: Readable.from(file),
     },
+    fields: 'id',
+  });
+
+  await drive.permissions.create({
+    fileId: res.data.id!,
+    requestBody: { role: 'reader', type: 'anyone' },
     fields: 'id',
   });
 
