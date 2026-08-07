@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { TrendingUp, FileText, ChevronDown, ChevronUp, Loader2, Eye, Link, Check, Copy } from 'lucide-react';
+import { TrendingUp, ChevronRight, Loader2, Link, Check, Copy, Folder, FolderOpen } from 'lucide-react';
 import { Viaje } from '@/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import DrivePreviewModal from './DrivePreviewModal';
+import IconoPdf from './IconoPdf';
 
 function fmt(n: number) {
   return `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`;
@@ -13,6 +14,8 @@ function fmt(n: number) {
 
 interface DocItem {
   id: string;
+  serie: string;
+  numero: string;
   label: string;
   tipo: 'factura' | 'guia';
   sub: string;
@@ -21,14 +24,41 @@ interface DocItem {
 
 interface MonthGroup {
   key: string;
-  mesLabel: string;
+  mes: string;
+  anio: string;
   items: DocItem[];
+}
+
+/** Amarillo carpeta — el look de fólder físico que se lee de un vistazo */
+const AMBAR = '#E9A23B';
+const AMBAR_SUAVE = '#FBE3B8';
+
+/** Agrupa los documentos de un mes por serie, conservando el orden ya calculado. */
+function agruparPorSerie(items: DocItem[]): [string, DocItem[]][] {
+  const map = new Map<string, DocItem[]>();
+  for (const it of items) {
+    const k = it.numero ? it.serie : 'Otros';
+    if (!map.has(k)) map.set(k, []);
+    map.get(k)!.push(it);
+  }
+  return Array.from(map.entries());
+}
+
+/**
+ * Normaliza "EG03 - 000240", "EG03-000239", "eg03  000238" → { serie: 'EG03', numero: '000240' }
+ * Si no calza el patrón serie-número, todo va a `serie`.
+ */
+function parseDoc(raw: string): { serie: string; numero: string } {
+  const limpio = raw.trim().replace(/\s+/g, ' ');
+  const m = limpio.match(/^([A-Za-z]{1,4}\s?\d{1,4})\s*[-–—]?\s*(\d{3,})$/);
+  if (!m) return { serie: limpio, numero: '' };
+  return { serie: m[1].replace(/\s/g, '').toUpperCase(), numero: m[2] };
 }
 
 export default function FinancialPanel({ isAdmin = false, initialViajes }: { isAdmin?: boolean; initialViajes?: Viaje[] }) {
   const [viajes, setViajes] = useState<Viaje[]>(initialViajes ?? []);
   const [loading, setLoading] = useState(!initialViajes);
-  const [openMonths, setOpenMonths] = useState<Set<string>>(new Set());
+  const [openMonths, setOpenMonths] = useState<Set<string> | null>(null);
   const [preview, setPreview] = useState<{ driveId: string; label: string } | null>(null);
   const [secretariaUrl, setSecretariaUrl] = useState<string | null>(null);
   const [loadingToken, setLoadingToken] = useState(false);
@@ -62,32 +92,39 @@ export default function FinancialPanel({ isAdmin = false, initialViajes }: { isA
 
   const monthGroups = useMemo((): MonthGroup[] => {
     const map = new Map<string, DocItem[]>();
-    const labelMap = new Map<string, string>();
+    const labelMap = new Map<string, { mes: string; anio: string }>();
 
     for (const v of viajes) {
       if (v.tipo !== 'viaje') continue;
       const fecha = v.fecha_traslado && !v.fecha_traslado.startsWith('1900') ? v.fecha_traslado : null;
       const key = fecha ? fecha.slice(0, 7) : '0000-00';
-      const mesLabel = fecha
-        ? format(new Date(fecha + 'T12:00:00'), 'MMM yyyy', { locale: es })
-        : 'Sin fecha';
+      const etiqueta = fecha
+        ? {
+            mes: format(new Date(fecha + 'T12:00:00'), 'MMMM', { locale: es }),
+            anio: fecha.slice(0, 4),
+          }
+        : { mes: 'Sin fecha', anio: '' };
 
-      if (!map.has(key)) { map.set(key, []); labelMap.set(key, mesLabel); }
+      if (!map.has(key)) { map.set(key, []); labelMap.set(key, etiqueta); }
       const items = map.get(key)!;
 
       if (v.drive_id_factura) {
+        const raw = v.numero_factura ?? v.descripcion ?? 'Factura';
         items.push({
           id: v.id + '-f',
-          label: v.numero_factura ?? v.descripcion ?? 'Factura',
+          ...parseDoc(raw),
+          label: raw,
           tipo: 'factura',
           sub: v.descripcion ?? '',
           driveId: v.drive_id_factura,
         });
       }
       if (v.drive_id_guia) {
+        const raw = v.numero_guia ?? v.descripcion ?? 'Guía';
         items.push({
           id: v.id + '-g',
-          label: v.numero_guia ?? v.descripcion ?? 'Guía',
+          ...parseDoc(raw),
+          label: raw,
           tipo: 'guia',
           sub: v.descripcion ?? '',
           driveId: v.drive_id_guia,
@@ -97,7 +134,16 @@ export default function FinancialPanel({ isAdmin = false, initialViajes }: { isA
 
     return Array.from(map.entries())
       .sort(([a], [b]) => b.localeCompare(a))
-      .map(([key, items]) => ({ key, mesLabel: labelMap.get(key) ?? key, items }));
+      .map(([key, items]) => ({
+        key,
+        ...(labelMap.get(key) ?? { mes: key, anio: '' }),
+        // Facturas primero, luego guías; dentro de cada tipo, número descendente
+        items: items.sort((a, b) =>
+          a.tipo !== b.tipo
+            ? a.tipo === 'factura' ? -1 : 1
+            : (b.serie + b.numero).localeCompare(a.serie + a.numero, 'es', { numeric: true })
+        ),
+      }));
   }, [viajes]);
 
   const balancePorCobrar = useMemo(() => {
@@ -107,17 +153,16 @@ export default function FinancialPanel({ isAdmin = false, initialViajes }: { isA
     return saldoAnterior + fletes - depositos;
   }, [viajes]);
 
-  // Auto-open most recent month
-  useEffect(() => {
-    if (monthGroups.length > 0 && openMonths.size === 0) {
-      setOpenMonths(new Set([monthGroups[0].key]));
-    }
-  }, [monthGroups]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Mes abierto por defecto: el más reciente que tenga documentos.
+  // Se deriva en render (no en un efecto) para no encadenar renders.
+  const mesPorDefecto = monthGroups.find(g => g.items.length > 0)?.key;
+  const abiertos = openMonths ?? new Set(mesPorDefecto ? [mesPorDefecto] : []);
 
   const toggleMonth = (key: string) => {
     setOpenMonths(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      const next = new Set(prev ?? (mesPorDefecto ? [mesPorDefecto] : []));
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
@@ -196,54 +241,96 @@ export default function FinancialPanel({ isAdmin = false, initialViajes }: { isA
             Sin documentos aún
           </p>
         ) : (
-          <div className="space-y-0.5">
+          <div>
             {monthGroups.map(group => {
-              const isOpen = openMonths.has(group.key);
+              const vacio = group.items.length === 0;
+              const isOpen = abiertos.has(group.key);
               return (
                 <div key={group.key}>
                   <button
+                    type="button"
                     onClick={() => toggleMonth(group.key)}
-                    className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg transition-colors"
+                    className="w-full flex items-center gap-2 px-2 rounded-lg transition-colors cursor-pointer"
+                    style={{ height: 30, opacity: vacio ? 0.55 : 1 }}
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--canvas)'}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = ''}
                   >
-                    <div className="flex items-center gap-1.5">
-                      <span style={{ fontSize: 12 }}>{isOpen ? '📂' : '📁'}</span>
-                      <span style={{ fontWeight: 600, fontSize: 12, letterSpacing: '-0.01em', color: 'var(--ink)', textTransform: 'capitalize' }}>
-                        {group.mesLabel}
-                      </span>
-                      <span className="badge-pill" style={{ background: 'var(--canvas)', color: 'var(--slate)', fontSize: 9, padding: '1px 5px' }}>
-                        {group.items.length}
-                      </span>
-                    </div>
+                    {/* Chevron guía — rota al abrir */}
+                    <ChevronRight
+                      size={11}
+                      style={{
+                        color: 'var(--dust)',
+                        flexShrink: 0,
+                        transform: isOpen ? 'rotate(90deg)' : 'none',
+                        transition: 'transform .18s ease',
+                      }}
+                    />
                     {isOpen
-                      ? <ChevronUp size={11} style={{ color: 'var(--slate)' }} />
-                      : <ChevronDown size={11} style={{ color: 'var(--slate)' }} />}
+                      ? <FolderOpen size={14} style={{ color: AMBAR, flexShrink: 0 }} />
+                      : <Folder size={14} fill={vacio ? 'none' : AMBAR_SUAVE} style={{ color: AMBAR, flexShrink: 0 }} />}
+
+                    <span
+                      className="flex-1 text-left truncate"
+                      style={{ fontWeight: isOpen ? 600 : 500, fontSize: 12, letterSpacing: '-0.01em', color: 'var(--ink)', textTransform: 'capitalize' }}
+                    >
+                      {group.mes}
+                      {group.anio && (
+                        <span style={{ color: 'var(--dust)', fontWeight: 450, marginLeft: 4 }}>{group.anio}</span>
+                      )}
+                    </span>
+
+                    <span style={{ fontSize: 10, color: 'var(--slate)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                      {group.items.length}
+                    </span>
                   </button>
 
                   {isOpen && (
-                    <div className="mt-0.5 space-y-0.5 pl-1">
-                      {group.items.map(item => (
-                        <button
-                          key={item.id}
-                          onClick={() => setPreview({ driveId: item.driveId, label: item.label })}
-                          className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl transition-all text-left"
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--canvas)'; (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-float)'; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; (e.currentTarget as HTMLElement).style.boxShadow = ''; }}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <FileText size={12} style={{ color: item.tipo === 'factura' ? 'var(--signal-light)' : '#60A5FA', flexShrink: 0 }} />
-                            <div className="min-w-0">
-                              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink)', letterSpacing: '-0.01em', fontFamily: 'monospace', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {item.label}
-                              </p>
-                              <p style={{ fontSize: 9, color: 'var(--slate)', lineHeight: 1.3, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
-                                {item.tipo === 'factura' ? 'Factura' : 'Guía'}
-                              </p>
-                            </div>
+                    /* Línea de árbol: conecta la carpeta con sus documentos */
+                    <div style={{ marginLeft: 13, borderLeft: '1px solid rgba(20,20,19,.09)', paddingLeft: 6 }}>
+                      {vacio && (
+                        <p style={{ fontSize: 10, color: 'var(--dust)', fontStyle: 'italic', padding: '5px 8px' }}>
+                          Sin documentos
+                        </p>
+                      )}
+                      {/* Agrupado por serie: la serie se escribe una sola vez y
+                          los correlativos caen en cuadrícula, fáciles de barrer con la vista */}
+                      {agruparPorSerie(group.items).map(([serie, docs]) => (
+                        <div key={serie} style={{ padding: '4px 0 6px' }}>
+                          <p style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--slate)', padding: '0 4px 4px', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
+                            {serie}
+                          </p>
+                          <div className="grid grid-cols-2 gap-1">
+                            {docs.map(item => {
+                              const color = item.tipo === 'factura' ? 'var(--signal-light)' : '#60A5FA';
+                              return (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  title={`${item.tipo === 'factura' ? 'Factura' : 'Guía'} ${item.serie}${item.numero ? '-' + item.numero : ''}`}
+                                  onClick={() => setPreview({ driveId: item.driveId, label: item.label })}
+                                  className="flex items-center rounded-md transition-all cursor-pointer"
+                                  style={{
+                                    gap: 3,
+                                    padding: '4px 5px',
+                                    background: 'var(--canvas)',
+                                    borderLeft: `2px solid ${color}`,
+                                    minWidth: 0,
+                                  }}
+                                  onMouseEnter={e => { const t = e.currentTarget as HTMLElement; t.style.background = 'var(--white)'; t.style.boxShadow = 'var(--shadow-float)'; }}
+                                  onMouseLeave={e => { const t = e.currentTarget as HTMLElement; t.style.background = 'var(--canvas)'; t.style.boxShadow = ''; }}
+                                >
+                                  <IconoPdf size={12} />
+                                  <span
+                                    className="truncate"
+                                    style={{ fontSize: 10, fontWeight: 600, color: 'var(--ink)', fontFamily: 'ui-monospace, SFMono-Regular, monospace', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.03em' }}
+                                  >
+                                    {item.numero || item.serie}
+                                  </span>
+                                </button>
+                              );
+                            })}
                           </div>
-                          <Eye size={11} style={{ color: 'var(--dust)', flexShrink: 0 }} />
-                        </button>
+                        </div>
                       ))}
                     </div>
                   )}

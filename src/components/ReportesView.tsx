@@ -3,11 +3,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FileSpreadsheet, ChevronDown } from 'lucide-react';
 import { Viaje } from '@/types';
+import { toast } from 'sonner';
 import EstadoCuentaBlocks from './EstadoCuentaBlocks';
 
 const fmtMoney = (n: number) =>
-  `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`;
+  `S/ ${(Number.isFinite(n) ? n : 0).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`;
 
+/** Clave de orden tolerante a fechas nulas o al centinela 1900 usado por depósitos. */
+const claveFecha = (f: string | null | undefined) =>
+  !f || f.startsWith('1900') ? '0000-00-00' : f;
 
 export default function ReportesView({ initialViajes }: { initialViajes?: Viaje[] }) {
   const [transactions, setTransactions] = useState<Viaje[]>(initialViajes ?? []);
@@ -18,24 +22,22 @@ export default function ReportesView({ initialViajes }: { initialViajes?: Viaje[
     if (initialViajes) return;
     fetch('/api/viajes')
       .then(r => r.json())
-      .then(data => { setTransactions(Array.isArray(data) ? data : []); setLoading(false); });
+      .then(data => { setTransactions(Array.isArray(data) ? data : []); })
+      .catch(() => toast.error('No se pudieron cargar los registros'))
+      .finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const kpis = useMemo(() => {
     let running = 0;
-    const sorted = [...transactions].sort((a, b) => {
-      const da = a.fecha_traslado.startsWith('1900') ? '0000-00-00' : a.fecha_traslado;
-      const db = b.fecha_traslado.startsWith('1900') ? '0000-00-00' : b.fecha_traslado;
-      return da.localeCompare(db);
-    });
+    const sorted = [...transactions].sort(
+      (a, b) => claveFecha(a.fecha_traslado).localeCompare(claveFecha(b.fecha_traslado))
+    );
     for (const v of sorted) {
       if (v.tipo === 'deposito') running -= Number(v.monto);
       else running += Number(v.monto);
     }
     const viajes = transactions.filter(v => v.tipo === 'viaje');
     return {
-      totalViajes: viajes.length,
-      montoTotal: viajes.reduce((s, v) => s + Number(v.monto), 0),
       detPendientes: viajes.filter(v => v.detraccion === 'pendiente').length,
       saldoActual: running,
     };
@@ -43,38 +45,59 @@ export default function ReportesView({ initialViajes }: { initialViajes?: Viaje[
 
   const descargar = async () => {
     setDescargando(true);
-    const res = await fetch('/api/reportes');
-    const blob = await res.blob();
-    const cd = res.headers.get('Content-Disposition') ?? '';
-    const filename = cd.split('filename="')[1]?.replace('"', '') ?? 'reporte.xlsx';
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = filename; a.click();
-    URL.revokeObjectURL(a.href); setDescargando(false);
+    let url: string | null = null;
+    try {
+      const res = await fetch('/api/reportes');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get('Content-Disposition') ?? '';
+      const filename = cd.split('filename="')[1]?.replace('"', '') ?? 'reporte.xlsx';
+
+      url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error desconocido';
+      toast.error(`No se pudo generar el Excel: ${msg}`);
+    } finally {
+      // Liberar después del clic: revocar de inmediato puede cancelar la descarga
+      const creada = url;
+      if (creada) setTimeout(() => URL.revokeObjectURL(creada), 10_000);
+      setDescargando(false);
+    }
   };
 
   return (
     <div className="space-y-5 pb-16">
 
       {/* Header */}
-      <div className="flex items-end justify-between gap-4 pt-2">
-        <div>
-          <p className="eyebrow mb-2">Análisis</p>
-          <h1 className="text-4xl" style={{ fontWeight: 500, letterSpacing: '-0.02em' }}>Reportes</h1>
+      <div className="flex items-end justify-between gap-3 pt-2">
+        <div className="min-w-0">
+          <p className="eyebrow mb-1.5 sm:mb-2">Análisis</p>
+          <h1 className="text-3xl sm:text-4xl" style={{ fontWeight: 500, letterSpacing: '-0.02em' }}>
+            Reportes
+          </h1>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={descargar} disabled={descargando || loading} className="btn-ink">
-            <FileSpreadsheet size={15} />
-            {descargando ? 'Generando...' : 'Excel'}
-          </button>
-        </div>
+        <button
+          onClick={descargar}
+          disabled={descargando || loading}
+          className="btn-ink shrink-0"
+          style={{ padding: '9px 16px', fontSize: 13 }}
+        >
+          <FileSpreadsheet size={15} />
+          {descargando ? 'Generando…' : 'Excel'}
+        </button>
       </div>
 
       {/* KPIs */}
       {!loading && transactions.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           {[
-            { eyebrow: 'Total viajes', value: String(kpis.totalViajes), sub: 'registros' },
-            { eyebrow: 'Monto acumulado', value: fmtMoney(kpis.montoTotal), sub: 'fletes' },
             {
               eyebrow: 'Det. pendientes', value: String(kpis.detPendientes),
               sub: kpis.detPendientes > 0 ? 'requieren atención' : 'todo al día ✓',
@@ -86,18 +109,25 @@ export default function ReportesView({ initialViajes }: { initialViajes?: Viaje[
               ok: kpis.saldoActual <= 0,
             },
           ].map(({ eyebrow, value, sub, warning, ok }) => (
-            <div key={eyebrow} className="rounded-3xl p-5 flex flex-col gap-1.5 anim-fade-up"
-              style={{ background: 'var(--white)', boxShadow: 'var(--shadow-card)' }}>
-              <p className="eyebrow">{eyebrow}</p>
-              <p className="text-xl leading-none"
+            <div key={eyebrow} className="rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 flex flex-col gap-1 sm:gap-1.5 anim-fade-up"
+              style={{ background: 'var(--white)', boxShadow: 'var(--shadow-card)', minWidth: 0 }}>
+              {/* El eyebrow global es de 12px; en móvil se come el ancho de la tarjeta */}
+              <p className="eyebrow" style={{ fontSize: 9.5, letterSpacing: '0.4px' }}>{eyebrow}</p>
+              <p className="text-base sm:text-xl leading-tight"
                 style={{
                   fontWeight: 600,
-                  letterSpacing: '-0.02em',
+                  letterSpacing: '-0.03em',
+                  fontVariantNumeric: 'tabular-nums',
                   color: warning ? 'var(--signal)' : ok ? '#16A34A' : 'var(--ink)',
+                  overflowWrap: 'anywhere',
                 }}>
                 {value}
               </p>
-              {sub && <p className="text-xs" style={{ color: 'var(--slate)', fontWeight: 450 }}>{sub}</p>}
+              {sub && (
+                <p style={{ fontSize: 10.5, color: 'var(--slate)', fontWeight: 450, lineHeight: 1.3 }}>
+                  {sub}
+                </p>
+              )}
             </div>
           ))}
         </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Paperclip, ArrowDownCircle, ClipboardList, Copy, Check, X, Eye } from 'lucide-react';
 import { Viaje, ViajeInsert, FiltrosViaje, EstadoDetraccion, TipoRegistro } from '@/types';
 import { BadgeEstado, ToggleDetraccion } from './BadgeEstado';
@@ -92,10 +92,17 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
     if (filtros.mes) params.set('mes', filtros.mes);
     if (filtros.estado) params.set('estado', filtros.estado);
     if (filtros.detraccion) params.set('detraccion', filtros.detraccion);
-    const res = await fetch(`/api/viajes?${params}`);
-    const data = await res.json();
-    setViajes(Array.isArray(data) ? data : []);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/viajes?${params}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setViajes(Array.isArray(data) ? data : []);
+    } catch {
+      // Sin catch, un fetch fallido dejaba la tabla girando para siempre
+      toast.error('No se pudieron cargar los viajes');
+    } finally {
+      setLoading(false);
+    }
   }, [filtros, readOnly]);
 
   useEffect(() => { fetchViajes(); }, [fetchViajes]);
@@ -242,9 +249,10 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
       const isDeleting = deletingId === v.id;
 
       return (
-        <>
+        // La key va en el Fragment, no en el <tr>: es el Fragment el elemento
+        // del array. Sin ella React no puede reconciliar y revienta con removeChild.
+        <Fragment key={v.id}>
           <tr
-            key={v.id}
             ref={el => {
               if (el && v.fecha_traslado && !v.fecha_traslado.startsWith('1900'))
                 rowRefs.current.set(v.fecha_traslado, el);
@@ -464,6 +472,8 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                     viajeId={v.id}
                     driveIdGuia={v.drive_id_guia ?? null}
                     driveIdFactura={v.drive_id_factura ?? null}
+                    numeroGuia={v.numero_guia}
+                    numeroFactura={v.numero_factura}
                     onUploaded={(tipo, driveId) => {
                       const field = tipo === 'guias' ? 'drive_id_guia' : 'drive_id_factura';
                       setViajes(prev => prev.map(vj => vj.id === v.id ? { ...vj, [field]: driveId } : vj));
@@ -472,7 +482,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
               </td>
             </tr>
           )}
-        </>
+        </Fragment>
       );
     });
   };
@@ -524,17 +534,20 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
             </div>
           ) : (
             <table className="w-full text-sm" style={{ tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>
+              {/* Anchos de columna: F.Carga, F.Traslado, Descripcion, N Guia,
+                  Estado factura, N Factura, Detraccion, Monto, Docs, Acciones.
+                  Sin espacios entre <col/>: un nodo de texto aqui rompe la hidratacion. */}
               <colgroup>
-                <col style={{ width: '8%'  }} /> {/* F. Carga      */}
-                <col style={{ width: '10%' }} /> {/* F. Traslado   */}
-                <col style={{ width: '15%' }} /> {/* Descripción   */}
-                <col style={{ width: '12%' }} /> {/* N° Guía       */}
-                <col style={{ width: '11%' }} /> {/* Estado factura */}
-                <col style={{ width: '11%' }} /> {/* N° Factura    */}
-                <col style={{ width: '12%' }} /> {/* Detracción    */}
-                <col style={{ width: '9%'  }} /> {/* Monto S/      */}
-                <col style={{ width: '6%'  }} /> {/* Docs          */}
-                <col style={{ width: '6%'  }} /> {/* Acciones      */}
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '9%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '6%' }} />
               </colgroup>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(20,20,19,.08)', background: 'var(--canvas-lifted)' }}>
@@ -556,9 +569,11 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                     const pendDet = realViajes.filter(v => v.detraccion === 'pendiente').length;
 
                     return (
-                      <>
+                      // Igual que arriba: la key pertenece al Fragment, que es
+                      // el elemento que devuelve el map.
+                      <Fragment key={`year-${year}`}>
                         {/* Year header row */}
-                        <tr key={`year-${year}`}
+                        <tr
                           style={{
                             background: 'var(--canvas)',
                             cursor: 'pointer',
@@ -596,7 +611,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                           </td>
                         </tr>
                         {isOpen && renderDesktopRows(yearViajes, yearViajes)}
-                      </>
+                      </Fragment>
                     );
                   })
                 }
@@ -651,6 +666,8 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                   const isSaldo = v.tipo === 'saldo_anterior';
                   const status = rowStatusStyle(v);
                   const isFlash = flashId === v.fecha_traslado;
+                  const abierta = expandedId === v.id;
+                  const docsAdjuntos = (v.drive_id_guia ? 1 : 0) + (v.drive_id_factura ? 1 : 0);
 
                   return (
                     <div key={v.id}
@@ -658,17 +675,22 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                         if (el && v.fecha_traslado && !v.fecha_traslado.startsWith('1900'))
                           cardRefs.current.set(v.fecha_traslado, el);
                       }}
-                      className={`p-5 space-y-4 mb-2 ${deletingId === v.id ? 'anim-fade-out' : 'anim-fade-up'}`}
+                      className={`mb-2 overflow-hidden ${deletingId === v.id ? 'anim-fade-out' : 'anim-fade-up'}`}
                       style={{
                         background: isDeposito ? '#F0FFF4' : isSaldo ? '#FFF8F0' : status.background,
-                        borderRadius: '24px',
+                        borderRadius: '20px',
                         boxShadow: 'var(--shadow-card)',
                         borderLeft: isDeposito || isSaldo ? 'none' : status.borderLeft,
                         outline: isFlash ? '2px solid var(--signal-light)' : 'none',
                         animationDelay: deletingId === v.id ? '0ms' : `${idx * 40}ms`,
                       }}>
 
-                      <div className="flex items-start justify-between">
+                      {/* Cabecera: siempre visible, toca para abrir */}
+                      <button
+                        type="button"
+                        onClick={() => setExpandedId(abierta ? null : v.id)}
+                        className="w-full text-left flex items-start justify-between px-4 py-3.5"
+                      >
                         <div className="flex-1 min-w-0">
                           {isDeposito ? (
                             <>
@@ -702,16 +724,47 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                               <p className="text-xs mt-0.5" style={{ color: 'var(--slate)' }}>
                                 {fmt(v.fecha_carga)} → {fmt(v.fecha_traslado)}
                               </p>
+                              {/* Resumen de una línea cuando está cerrada, para no
+                                  tener que abrirla solo para saber cómo va */}
+                              {!abierta && (
+                                <div className="flex items-center gap-1.5 mt-1.5" style={{ fontSize: 10 }}>
+                                  <span style={{ color: v.estado === 'facturado' ? '#16A34A' : 'var(--signal)', fontWeight: 600 }}>
+                                    {v.estado === 'facturado' ? 'Facturado' : 'Pendiente'}
+                                  </span>
+                                  {v.detraccion === 'pendiente' && (
+                                    <>
+                                      <span style={{ color: 'var(--dust)' }}>·</span>
+                                      <span style={{ color: 'var(--signal)' }}>det. pend.</span>
+                                    </>
+                                  )}
+                                  {docsAdjuntos > 0 && (
+                                    <>
+                                      <span style={{ color: 'var(--dust)' }}>·</span>
+                                      <span className="flex items-center gap-1" style={{ color: 'var(--slate)' }}>
+                                        <Paperclip size={9} />
+                                        {docsAdjuntos}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              )}
                             </>
                           )}
                         </div>
-                        <span className="ml-3 shrink-0 font-bold text-base" style={{
-                          color: isDeposito ? '#16A34A' : 'var(--ink)', letterSpacing: '-0.02em',
-                        }}>
-                          {isDeposito ? '+' : ''}S/ {Number(v.monto).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
-                        </span>
-                      </div>
+                        <div className="ml-3 shrink-0 flex items-center gap-1.5">
+                          <span className="font-bold text-base" style={{
+                            color: isDeposito ? '#16A34A' : 'var(--ink)', letterSpacing: '-0.02em', whiteSpace: 'nowrap',
+                          }}>
+                            {isDeposito ? '+' : ''}S/ {Number(v.monto).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                          </span>
+                          {abierta
+                            ? <ChevronUp size={14} style={{ color: 'var(--slate)' }} />
+                            : <ChevronDown size={14} style={{ color: 'var(--dust)' }} />}
+                        </div>
+                      </button>
 
+                      {abierta && (
+                      <div className="px-4 pb-4 space-y-3">
                       {!isDeposito && !isSaldo && (
                         <>
                           {/* Estado + Detracción prominent row */}
@@ -719,7 +772,9 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                             <BadgeEstado estado={v.estado} />
                             <ToggleDetraccion detraccion={v.detraccion} viajeId={v.id} onToggle={handleToggle} loading={toggling === v.id} />
                           </div>
-                          {(v.numero_guia || v.numero_factura) && (
+                          {/* Solo en modo lectura: si se puede editar, las tarjetas de
+                              ArchivosDrive ya muestran el número y el botón de ver */}
+                          {readOnly && (v.numero_guia || v.numero_factura) && (
                             <div className="text-xs space-y-0.5" style={{ color: 'var(--slate)' }}>
                               {v.numero_guia && (
                                 <div className="flex items-center gap-2">
@@ -752,11 +807,13 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                             </div>
                           )}
                           {!readOnly && (
-                            <div style={{ borderTop: '1px solid rgba(20,20,19,.08)', paddingTop: 12 }}>
+                            <div style={{ borderTop: '1px solid rgba(20,20,19,.08)', paddingTop: 10 }}>
                               <ArchivosDrive
                                 viajeId={v.id}
                                 driveIdGuia={v.drive_id_guia ?? null}
                                 driveIdFactura={v.drive_id_factura ?? null}
+                                numeroGuia={v.numero_guia}
+                                numeroFactura={v.numero_factura}
                                 onUploaded={(tipo, driveId) => {
                                   const field = tipo === 'guias' ? 'drive_id_guia' : 'drive_id_factura';
                                   setViajes(prev => prev.map(vj => vj.id === v.id ? { ...vj, [field]: driveId } : vj));
@@ -778,6 +835,8 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                             <Trash2 size={12} /> Eliminar
                           </button>
                         </div>
+                      )}
+                      </div>
                       )}
                     </div>
                   );
