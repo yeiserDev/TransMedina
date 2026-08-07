@@ -12,7 +12,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             'openid',
             'email',
             'profile',
-            'https://www.googleapis.com/auth/drive.file',
+            'https://www.googleapis.com/auth/drive',
           ].join(' '),
           access_type: 'offline',
           prompt: 'consent',

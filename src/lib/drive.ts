@@ -12,13 +12,17 @@ export async function getOrCreateFolder(
   name: string,
   parentId: string
 ): Promise<string> {
-  const res = await drive.files.list({
-    q: `name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`,
-    fields: 'files(id)',
-  });
-
-  if (res.data.files && res.data.files.length > 0) {
-    return res.data.files[0].id!;
+  try {
+    const res = await drive.files.list({
+      q: `name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`,
+      fields: 'files(id)',
+      spaces: 'drive',
+    });
+    if (res.data.files && res.data.files.length > 0) {
+      return res.data.files[0].id!;
+    }
+  } catch {
+    // Con scope restrictivo files.list puede fallar; continuar y crear la carpeta
   }
 
   const folder = await drive.files.create({
@@ -65,7 +69,7 @@ export async function uploadFileToDrive(
   return res.data.id!;
 }
 
-export async function getFileUrl(accessToken: string, fileId: string): Promise<string> {
+export async function getFileUrl(_accessToken: string, fileId: string): Promise<string> {
   return `https://drive.google.com/file/d/${fileId}/view`;
 }
 
