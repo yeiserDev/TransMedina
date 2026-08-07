@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Paperclip, ArrowDownCircle, ClipboardList, Copy, Check, X, Eye } from 'lucide-react';
 import { Viaje, ViajeInsert, FiltrosViaje, EstadoDetraccion, TipoRegistro } from '@/types';
+import { formatDoc } from '@/lib/documentos';
 import { BadgeEstado, ToggleDetraccion } from './BadgeEstado';
 import FiltroBarra from './FiltroBarra';
 import ViajeForm from './ViajeForm';
@@ -26,6 +27,75 @@ function SkeletonRow() {
 }
 
 const fmtMoney = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`;
+
+/* Separadores verticales que agrupan las columnas en bloques:
+   [datos del viaje] | [guía] | [factura] | [cobro] · docs.
+   Sirven para que se entienda a qué documento pertenece cada ojo.
+   Índices = columna donde EMPIEZA cada bloque nuevo.
+   Solo los tres que hacen falta para leer guía vs. factura: cada línea
+   extra suma ruido sin aportar información. */
+const COL_DIVISOR = new Set([3, 4, 6]);
+const BORDE_DIVISOR = '1px solid rgba(20,20,19,.035)';
+const divisor = (i: number) => (COL_DIVISOR.has(i) ? BORDE_DIVISOR : undefined);
+
+/* La cabecera se fija al borde superior de la tarjeta, que tiene su propio
+   scroll. Anclarla al viewport la dejaba flotando a media pantalla, pisando
+   las filas y con un hueco por el que se veía pasar el contenido. */
+
+/* Aire que queda bajo la tarjeta. Un calc() fijo dejaba un hueco enorme
+   porque tenía que asumir el peor caso de contenido superior; midiendo la
+   posición real la tabla aprovecha toda la pantalla disponible. */
+const AIRE_INFERIOR = 24;
+const ALTO_MINIMO = 320;
+
+/* Números de guía/factura: nunca se recortan. El monospace del sistema es
+   más angosto que el genérico y las series de 6 dígitos entran completas. */
+const ESTILO_NUM_DOC: React.CSSProperties = {
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+  fontSize: 11.5,
+  letterSpacing: '-0.02em',
+  color: 'var(--slate)',
+  whiteSpace: 'nowrap',
+  flex: '0 1 auto',
+  minWidth: 0,
+};
+
+/* Chip de "hay documento adjunto": se lee a simple vista sin competir con el
+   número ni con los badges de estado de la fila. */
+function BotonVerDoc({ title, onClick }: { title: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className="flex items-center justify-center transition-all shrink-0"
+      style={{
+        width: 22,
+        height: 22,
+        borderRadius: 6,
+        border: '1px solid rgba(20,20,19,.10)',
+        background: 'var(--white)',
+        boxShadow: '0 1px 1.5px rgba(20,20,19,.05)',
+        cursor: 'pointer',
+        color: 'var(--slate)',
+      }}
+      onMouseEnter={e => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.color = 'var(--signal)';
+        el.style.borderColor = 'rgba(207,69,0,.35)';
+        el.style.background = '#FFF6F0';
+      }}
+      onMouseLeave={e => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.color = 'var(--slate)';
+        el.style.borderColor = 'rgba(20,20,19,.10)';
+        el.style.background = 'var(--white)';
+      }}
+    >
+      <Eye size={13} />
+    </button>
+  );
+}
 
 function formatFactura(v: Viaje): string {
   const esPuc = v.descripcion?.toLowerCase().includes('pucallpa');
@@ -71,6 +141,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
   const [loadingFacturas, setLoadingFacturas] = useState(false);
   const [copied, setCopied] = useState(false);
   const [flashId, setFlashId] = useState<string | null>(null);
+  const [altoTabla, setAltoTabla] = useState<number | undefined>();
 
   // Year accordion: current year open by default, others collapsed
   const currentYear = String(new Date().getFullYear());
@@ -78,6 +149,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
 
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const scrollBoxRef = useRef<HTMLDivElement>(null);
   // Evita el fetch duplicado en el montaje cuando ya hay datos del server
   const skipInitialFetch = useRef(initialViajes !== undefined);
 
@@ -106,6 +178,22 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
   }, [filtros, readOnly]);
 
   useEffect(() => { fetchViajes(); }, [fetchViajes]);
+
+  /* Estira la tabla hasta el borde inferior de la ventana. Se mide la
+     posición del contenedor en el documento (no en el viewport) para que el
+     resultado no dependa de cuánto se haya bajado la página. */
+  useEffect(() => {
+    const medir = () => {
+      const el = scrollBoxRef.current;
+      // offsetParent null = oculto (breakpoint móvil): no hay nada que medir
+      if (!el || el.offsetParent === null) return;
+      const topEnDocumento = el.getBoundingClientRect().top + window.scrollY;
+      setAltoTabla(Math.max(ALTO_MINIMO, window.innerHeight - topEnDocumento - AIRE_INFERIOR));
+    };
+    medir();
+    window.addEventListener('resize', medir);
+    return () => window.removeEventListener('resize', medir);
+  }, [loading, viajes.length, filtros]);
 
   // Listen for calendar day clicks
   useEffect(() => {
@@ -303,32 +391,27 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                 <span style={{ fontWeight: 450, color: 'var(--ink)', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.descripcion}</span>
               )}
             </td>
-            <td className="px-3 py-2.5">
+            {/* Bloque GUÍA */}
+            <td className="px-3 py-2.5" style={{ borderLeft: divisor(3) }}>
               {(isDeposito || isSaldo) ? (
                 <span style={{ color: 'var(--dust)', fontSize: 12 }}>—</span>
               ) : (
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--slate)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
-                    {v.numero_guia || '—'}
+                  <span style={ESTILO_NUM_DOC}>
+                    {formatDoc(v.numero_guia) || '—'}
                   </span>
                   {v.drive_id_guia && (
-                    <button
+                    <BotonVerDoc
+                      title="Ver guía adjunta"
                       onClick={() => setPreview({ driveId: v.drive_id_guia!, label: v.numero_guia ? `Guía ${v.numero_guia}` : 'Guía' })}
-                      title="Ver guía"
-                      className="flex items-center justify-center transition-colors shrink-0"
-                      style={{ width: 18, height: 18, borderRadius: 4, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--slate)' }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--ink)'}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--slate)'}
-                    >
-                      <Eye size={11} />
-                    </button>
+                    />
                   )}
                 </div>
               )}
             </td>
 
-            {/* Estado — visually prominent */}
-            <td className="px-3 py-2.5">
+            {/* Bloque FACTURA — estado + número van juntos */}
+            <td className="px-3 py-2.5" style={{ borderLeft: divisor(4) }}>
               {(isDeposito || isSaldo) ? (
                 <span style={{ color: 'var(--dust)', fontSize: 12 }}>—</span>
               ) : (
@@ -341,27 +424,21 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                 <span style={{ color: 'var(--dust)', fontSize: 12 }}>—</span>
               ) : (
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--slate)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
-                    {v.numero_factura || '—'}
+                  <span style={ESTILO_NUM_DOC}>
+                    {formatDoc(v.numero_factura) || '—'}
                   </span>
                   {v.drive_id_factura && (
-                    <button
+                    <BotonVerDoc
+                      title="Ver factura adjunta"
                       onClick={() => setPreview({ driveId: v.drive_id_factura!, label: v.numero_factura ? `Factura ${v.numero_factura}` : 'Factura' })}
-                      title="Ver factura"
-                      className="flex items-center justify-center transition-colors shrink-0"
-                      style={{ width: 18, height: 18, borderRadius: 4, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--slate)' }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--ink)'}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--slate)'}
-                    >
-                      <Eye size={11} />
-                    </button>
+                    />
                   )}
                 </div>
               )}
             </td>
 
-            {/* Detracción — visually prominent */}
-            <td className="px-3 py-2.5">
+            {/* Bloque COBRO */}
+            <td className="px-3 py-2.5" style={{ borderLeft: divisor(6) }}>
               {(isDeposito || isSaldo) ? (
                 <span style={{ color: 'var(--dust)', fontSize: 12 }}>—</span>
               ) : (
@@ -384,7 +461,8 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
               </span>
             </td>
 
-            <td className="px-3 py-2.5">
+            {/* Bloque DOCS + acciones */}
+            <td className="px-3 py-2.5" style={{ borderLeft: divisor(8) }}>
               {!isDeposito && !isSaldo && !readOnly && (
                 <button
                   onClick={() => setExpandedId(expandedId === v.id ? null : v.id)}
@@ -522,7 +600,13 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
 
       {/* ── Tabla desktop ───────────────────────────────────── */}
       <div className="hidden sm:block card-stadium">
-        <div>
+        {/* Este div es el contenedor de scroll: la cabecera sticky se ancla a
+            su borde superior, no al viewport. Sin maxHeight no hay scroll
+            propio y el sticky nunca se activaría. */}
+        {/* overflowX: en pantallas medianas los porcentajes se comprimen tanto
+            que los números volverían a cortarse; con minWidth en la tabla se
+            desplaza en horizontal en vez de recortar. */}
+        <div ref={scrollBoxRef} style={{ maxHeight: altoTabla, minHeight: 280, overflowY: 'auto', overflowX: 'auto' }}>
           {loading ? (
             <table className="w-full"><tbody>{Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)}</tbody></table>
           ) : viajes.length === 0 ? (
@@ -533,27 +617,43 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
               <p style={{ color: 'var(--slate)', fontWeight: 450 }}>Sin registros. Agrega el primero.</p>
             </div>
           ) : (
-            <table className="w-full text-sm" style={{ tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>
+            <table className="w-full text-sm" style={{ tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0, minWidth: 940 }}>
               {/* Anchos de columna: F.Carga, F.Traslado, Descripcion, N Guia,
                   Estado factura, N Factura, Detraccion, Monto, Docs, Acciones.
                   Sin espacios entre <col/>: un nodo de texto aqui rompe la hidratacion. */}
+              {/* N° Guía y N° Factura llevan el mayor ancho: cargan el número
+                  (hasta 6 dígitos) más el botón de ver. La descripción cede
+                  espacio porque se repite y tolera el recorte. */}
               <colgroup>
                 <col style={{ width: '8%' }} />
+                <col style={{ width: '9%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '15%' }} />
                 <col style={{ width: '10%' }} />
                 <col style={{ width: '15%' }} />
-                <col style={{ width: '12%' }} />
                 <col style={{ width: '11%' }} />
-                <col style={{ width: '11%' }} />
-                <col style={{ width: '12%' }} />
                 <col style={{ width: '9%' }} />
                 <col style={{ width: '6%' }} />
-                <col style={{ width: '6%' }} />
+                <col style={{ width: '5%' }} />
               </colgroup>
               <thead>
-                <tr style={{ borderBottom: '1px solid rgba(20,20,19,.08)', background: 'var(--canvas-lifted)' }}>
-                  {['F. Carga', 'F. Traslado', 'Descripción', 'N° Guía', 'Estado factura', 'N° Factura', 'Detracción', 'Monto (S/)', 'Docs', ''].map((h) => (
-                    <th key={h} className="text-left px-3 py-2.5 eyebrow"
-                      style={{ fontWeight: 700, letterSpacing: '0.04em', fontSize: 10, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                <tr>
+                  {['F. Carga', 'F. Traslado', 'Descripción', 'N° Guía', 'Estado factura', 'N° Factura', 'Detracción', 'Monto (S/)', 'Docs', ''].map((h, i) => (
+                    /* El fondo y el borde van en cada <th>, no en el <tr>: con
+                       position:sticky el fondo del <tr> no acompaña a la celda
+                       y las filas se transparentarían por debajo. */
+                    <th key={h} className="text-left px-3 py-3 eyebrow eyebrow-plain"
+                      style={{
+                        fontWeight: 700, letterSpacing: '0.06em', fontSize: 10,
+                        color: 'var(--slate)',
+                        whiteSpace: 'nowrap', overflow: 'hidden',
+                        borderLeft: divisor(i),
+                        position: 'sticky', top: 0, zIndex: 3,
+                        background: 'var(--white)',
+                        /* Borde inferior + sombra de elevación: los bordes del
+                           <tr> no viajan con la celda sticky. */
+                        boxShadow: 'inset 0 -1px 0 rgba(20,20,19,.10), 0 4px 8px -6px rgba(20,20,19,.18)',
+                      }}>
                       {h}
                     </th>
                   ))}
@@ -778,7 +878,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                             <div className="text-xs space-y-0.5" style={{ color: 'var(--slate)' }}>
                               {v.numero_guia && (
                                 <div className="flex items-center gap-2">
-                                  <p>Guía: <span style={{ fontFamily: 'monospace', color: 'var(--ink)' }}>{v.numero_guia}</span></p>
+                                  <p>Guía: <span style={{ fontFamily: 'monospace', color: 'var(--ink)', whiteSpace: 'nowrap' }}>{formatDoc(v.numero_guia)}</span></p>
                                   {v.drive_id_guia && (
                                     <button
                                       onClick={() => setPreview({ driveId: v.drive_id_guia!, label: `Guía ${v.numero_guia}` })}
@@ -792,7 +892,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                               )}
                               {v.numero_factura && (
                                 <div className="flex items-center gap-2">
-                                  <p>Factura: <span style={{ fontFamily: 'monospace', color: 'var(--ink)' }}>{v.numero_factura}</span></p>
+                                  <p>Factura: <span style={{ fontFamily: 'monospace', color: 'var(--ink)', whiteSpace: 'nowrap' }}>{formatDoc(v.numero_factura)}</span></p>
                                   {v.drive_id_factura && (
                                     <button
                                       onClick={() => setPreview({ driveId: v.drive_id_factura!, label: `Factura ${v.numero_factura}` })}

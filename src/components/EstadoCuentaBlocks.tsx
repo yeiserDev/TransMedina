@@ -3,8 +3,14 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, TrendingUp, ArrowDownCircle } from 'lucide-react';
 import { Viaje } from '@/types';
+import { formatDoc } from '@/lib/documentos';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+
+/* F. carga · F. traslado · Descripción · N° Guía · Estado · N° Factura · Detr. · Monto.
+   Guía y factura llevan ancho fijo suficiente para "EG03-000240" completo:
+   antes la factura tenía 90px y los números de 6 dígitos se recortaban. */
+const GRID_COLS = '76px 76px 1fr 112px 74px 112px 44px 84px';
 
 interface LedgerRow {
   viaje: Viaje;
@@ -211,7 +217,7 @@ export default function EstadoCuentaBlocks({ viajes, readOnly: _readOnly = false
                 {/* Column headers — desktop */}
                 <div className="hidden sm:grid px-5 py-2"
                   style={{
-                    gridTemplateColumns: '76px 76px 1fr 110px 70px 90px 60px 80px',
+                    gridTemplateColumns: GRID_COLS,
                     gap: '8px',
                     borderBottom: '1px solid rgba(20,20,19,.06)',
                     background: 'var(--canvas-lifted)',
@@ -305,18 +311,18 @@ export default function EstadoCuentaBlocks({ viajes, readOnly: _readOnly = false
                       }}>
                       {/* Desktop */}
                       <div className="hidden sm:grid px-5 py-2.5 items-center"
-                        style={{ gridTemplateColumns: '76px 76px 1fr 110px 70px 90px 60px 80px', gap: '8px' }}>
+                        style={{ gridTemplateColumns: GRID_COLS, gap: '8px' }}>
                         <span className="text-xs" style={{ color: 'var(--slate)' }}>{fmtDate(v.fecha_carga)}</span>
                         <span className="text-xs" style={{ color: 'var(--slate)' }}>{fmtDate(v.fecha_traslado)}</span>
                         <span className="text-xs truncate" style={{ color: 'var(--ink)', fontWeight: 450 }}>{v.descripcion}</span>
-                        <span className="text-xs truncate" style={{ color: 'var(--slate)' }}>{v.numero_guia || '—'}</span>
+                        <span className="text-xs" style={{ color: 'var(--slate)', whiteSpace: 'nowrap' }}>{formatDoc(v.numero_guia) || '—'}</span>
                         <span>
                           {v.estado === 'facturado'
                             ? <span className="badge-pill" style={{ background: '#DCFCE7', color: '#14532D', fontSize: 9, padding: '2px 8px' }}>Facturado</span>
                             : <span className="badge-pill" style={{ background: '#FFF8F5', color: 'var(--signal)', fontSize: 9, padding: '2px 8px' }}>Pendiente</span>
                           }
                         </span>
-                        <span className="text-xs truncate" style={{ color: 'var(--slate)' }}>{v.numero_factura || '—'}</span>
+                        <span className="text-xs" style={{ color: 'var(--slate)', whiteSpace: 'nowrap' }}>{formatDoc(v.numero_factura) || '—'}</span>
                         <span>
                           {v.detraccion === 'realizado'
                             ? <span style={{ fontSize: 11, color: '#16A34A' }}>✓</span>
@@ -335,7 +341,7 @@ export default function EstadoCuentaBlocks({ viajes, readOnly: _readOnly = false
                             <p className="text-sm truncate" style={{ fontWeight: 500, color: 'var(--ink)' }}>{v.descripcion}</p>
                             <p className="text-xs mt-0.5" style={{ color: 'var(--slate)' }}>
                               {fmtDate(v.fecha_traslado)}
-                              {v.numero_guia ? ` · ${v.numero_guia}` : ''}
+                              {v.numero_guia ? ` · ${formatDoc(v.numero_guia)}` : ''}
                             </p>
                           </div>
                           <div className="shrink-0 text-right">

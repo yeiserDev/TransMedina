@@ -60,6 +60,11 @@ body {
   content: '• ';
   color: var(--signal-light);
 }
+/* Eyebrow sin viñeta: en cabeceras de tabla el punto se repite en cada
+   columna y ensucia una fila que debe leerse como una sola banda. */
+.eyebrow-plain::before {
+  content: none;
+}
 
 /* Headline tightening */
 h1, h2, h3 {

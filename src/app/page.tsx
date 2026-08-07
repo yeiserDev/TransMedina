@@ -27,7 +27,7 @@ export default async function HomePage() {
 
           {/* Panel izquierdo — Finanzas */}
           <aside className="hidden lg:block lg:sticky lg:top-24">
-            <FinancialPanel isAdmin={isAdmin} initialViajes={initialViajes} />
+            <FinancialPanel initialViajes={initialViajes} />
           </aside>
 
           {/* Contenido principal */}

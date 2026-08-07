@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { TrendingUp, ChevronRight, Loader2, Link, Check, Copy, Folder, FolderOpen } from 'lucide-react';
+import { TrendingUp, ChevronRight, Loader2, Folder, FolderOpen } from 'lucide-react';
 import { Viaje } from '@/types';
+import { parseDoc } from '@/lib/documentos';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import DrivePreviewModal from './DrivePreviewModal';
@@ -44,25 +45,12 @@ function agruparPorSerie(items: DocItem[]): [string, DocItem[]][] {
   return Array.from(map.entries());
 }
 
-/**
- * Normaliza "EG03 - 000240", "EG03-000239", "eg03  000238" → { serie: 'EG03', numero: '000240' }
- * Si no calza el patrón serie-número, todo va a `serie`.
- */
-function parseDoc(raw: string): { serie: string; numero: string } {
-  const limpio = raw.trim().replace(/\s+/g, ' ');
-  const m = limpio.match(/^([A-Za-z]{1,4}\s?\d{1,4})\s*[-–—]?\s*(\d{3,})$/);
-  if (!m) return { serie: limpio, numero: '' };
-  return { serie: m[1].replace(/\s/g, '').toUpperCase(), numero: m[2] };
-}
 
-export default function FinancialPanel({ isAdmin = false, initialViajes }: { isAdmin?: boolean; initialViajes?: Viaje[] }) {
+export default function FinancialPanel({ initialViajes }: { initialViajes?: Viaje[] }) {
   const [viajes, setViajes] = useState<Viaje[]>(initialViajes ?? []);
   const [loading, setLoading] = useState(!initialViajes);
   const [openMonths, setOpenMonths] = useState<Set<string> | null>(null);
   const [preview, setPreview] = useState<{ driveId: string; label: string } | null>(null);
-  const [secretariaUrl, setSecretariaUrl] = useState<string | null>(null);
-  const [loadingToken, setLoadingToken] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
 
   const fetchAll = () => {
     fetch('/api/viajes')
@@ -75,15 +63,6 @@ export default function FinancialPanel({ isAdmin = false, initialViajes }: { isA
     // Solo cargar viajes si no vinieron del server
     if (!initialViajes) {
       fetchAll();
-    }
-    if (isAdmin) {
-      fetch('/api/tokens')
-        .then(r => r.json())
-        .then((tokens: { cliente_nombre: string; activo: boolean; token: string }[]) => {
-          const t = Array.isArray(tokens) ? tokens.find(t => t.cliente_nombre === 'Secretaria' && t.activo) : null;
-          if (t) setSecretariaUrl(`${window.location.origin}/secretaria?token=${t.token}`);
-        })
-        .catch(() => {});
     }
     // En actualizaciones posteriores: recargar todo desde la API
     window.addEventListener('viajes-updated', fetchAll);
@@ -165,33 +144,6 @@ export default function FinancialPanel({ isAdmin = false, initialViajes }: { isA
       else next.add(key);
       return next;
     });
-  };
-
-  const handleSecretariaAccess = async () => {
-    if (secretariaUrl) {
-      await navigator.clipboard.writeText(secretariaUrl);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2500);
-      return;
-    }
-    setLoadingToken(true);
-    try {
-      const res = await fetch('/api/tokens', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cliente_nombre: 'Secretaria' }),
-      });
-      const data = await res.json();
-      const url = `${window.location.origin}/secretaria?token=${data.token}`;
-      setSecretariaUrl(url);
-      await navigator.clipboard.writeText(url);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2500);
-    } catch {
-      // silent
-    } finally {
-      setLoadingToken(false);
-    }
   };
 
   const totalDocs = monthGroups.reduce((s, g) => s + g.items.length, 0);
@@ -340,47 +292,6 @@ export default function FinancialPanel({ isAdmin = false, initialViajes }: { isA
           </div>
         )}
       </div>
-
-      {/* Acceso secretaria — solo admin */}
-      {isAdmin && (
-        <>
-          <div style={{ height: 1, background: 'rgba(20,20,19,.08)' }} />
-          <div>
-            <p className="eyebrow px-1 mb-2">Acceso secretaria</p>
-            <button
-              onClick={handleSecretariaAccess}
-              disabled={loadingToken}
-              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl transition-all"
-              style={{
-                fontSize: 11,
-                fontWeight: 500,
-                border: copiedLink ? '1px solid #86EFAC' : '1px solid rgba(20,20,19,.18)',
-                background: copiedLink ? '#DCFCE7' : 'transparent',
-                color: copiedLink ? '#16A34A' : 'var(--ink)',
-                cursor: loadingToken ? 'not-allowed' : 'pointer',
-              }}
-              onMouseEnter={e => { if (!loadingToken && !copiedLink) (e.currentTarget as HTMLElement).style.background = 'var(--canvas)'; }}
-              onMouseLeave={e => { if (!loadingToken && !copiedLink) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-            >
-              {loadingToken ? (
-                <Loader2 size={11} className="animate-spin" />
-              ) : copiedLink ? (
-                <Check size={11} />
-              ) : secretariaUrl ? (
-                <Copy size={11} />
-              ) : (
-                <Link size={11} />
-              )}
-              {loadingToken ? 'Generando…' : copiedLink ? '¡Copiado!' : secretariaUrl ? 'Copiar link' : 'Generar acceso'}
-            </button>
-            {secretariaUrl && !copiedLink && (
-              <p style={{ fontSize: 9, color: 'var(--dust)', marginTop: 4, paddingLeft: 4 }}>
-                Solo lectura · sin contraseña
-              </p>
-            )}
-          </div>
-        </>
-      )}
 
       {/* Drive preview modal */}
       {preview && (

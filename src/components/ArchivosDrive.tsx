@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import { Upload, ExternalLink, Loader2, Check, Eye, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatDoc } from '@/lib/documentos';
 import IconoPdf from './IconoPdf';
 import DrivePreviewModal from './DrivePreviewModal';
 
@@ -153,7 +154,7 @@ function ArchivoCard({
               : done
                 ? '¡Listo!'
                 : numero
-                  ? numero
+                  ? formatDoc(numero)
                   : tieneArchivo
                     ? 'Documento adjunto'
                     : 'Toca para subir'}
