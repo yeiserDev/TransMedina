@@ -24,6 +24,9 @@
   /* Radius scale — Mastercard skips 8-16px intentionally */
   --r-btn:   20px;
   --r-chip:  24px;
+  /* Paneles angostos de la barra lateral: con --r-hero la curva se come el
+     ancho de la tarjeta y se lee ovalada. */
+  --r-panel: 28px;
   --r-hero:  40px;
   --r-pill:  999px;
 

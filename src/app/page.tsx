@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth';
 import Navbar from '@/components/Navbar';
 import ViajesTable from '@/components/ViajesTable';
 import ClockWidget from '@/components/ClockWidget';
+import ConsejosSunat from '@/components/ConsejosSunat';
 import FinancialPanel from '@/components/FinancialPanel';
 import { createAdminClient } from '@/lib/supabase/server';
 import { Viaje } from '@/types';
@@ -38,6 +39,7 @@ export default async function HomePage() {
           {/* Panel derecho — Reloj y calendario */}
           <aside className="hidden lg:block lg:sticky lg:top-24">
             <ClockWidget />
+            <ConsejosSunat />
           </aside>
 
         </div>

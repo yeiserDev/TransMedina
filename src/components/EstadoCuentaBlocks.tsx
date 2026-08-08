@@ -133,8 +133,10 @@ export default function EstadoCuentaBlocks({ viajes, readOnly: _readOnly = false
         const isLast = bIdx === 0; // primer bloque = más reciente → fondo destacado
 
         return (
+          /* Radio reducido: plegado el bloque mide ~74px de alto y con
+             --r-hero las esquinas se juntan y lo vuelven una píldora. */
           <div key={block.mes} className="card-stadium overflow-hidden anim-fade-up"
-            style={{ animationDelay: `${bIdx * 40}ms` }}>
+            style={{ animationDelay: `${bIdx * 40}ms`, borderRadius: 'var(--r-panel)' }}>
 
             {/* Block header — accordion toggle */}
             <button

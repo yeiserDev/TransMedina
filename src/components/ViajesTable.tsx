@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Paperclip, ArrowDownCircle, ClipboardList, Copy, Check, X, Eye } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Paperclip, ArrowDownCircle, ArrowRight, Clock, ClipboardList, Copy, Check, X, Eye } from 'lucide-react';
 import { Viaje, ViajeInsert, FiltrosViaje, EstadoDetraccion, TipoRegistro } from '@/types';
 import { formatDoc } from '@/lib/documentos';
 import { BadgeEstado, ToggleDetraccion } from './BadgeEstado';
@@ -320,6 +320,14 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
     catch { return d; }
   };
 
+  /* Sin año, para la lista móvil: la cabecera del grupo ya dice de qué año es
+     y así las dos fechas entran en la misma línea que el estado. */
+  const fmtCorto = (d: string) => {
+    if (!d || d.startsWith('1900')) return '—';
+    try { return format(new Date(d + 'T12:00:00'), 'dd MMM', { locale: es }); }
+    catch { return d; }
+  };
+
   const toggleYear = (year: string) => {
     setOpenYears(prev => {
       const next = new Set(prev);
@@ -350,7 +358,9 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
             style={{
               borderBottom: '1px solid rgba(20,20,19,.055)',
               background: isDeposito ? '#F0FFF4' : isSaldo ? '#FFF8F0' : status.background,
-              borderLeft: isDeposito || isSaldo ? 'none' : status.borderLeft,
+              // Filete de color: marca la fila como movimiento de dinero antes
+              // incluso de leerla
+              borderLeft: isDeposito ? '3px solid #16A34A' : isSaldo ? '3px solid #D97706' : status.borderLeft,
               outline: isFlash ? '2px solid var(--signal-light)' : 'none',
               outlineOffset: -2,
               animationDelay: isDeleting ? '0ms' : `${idx * 18}ms`,
@@ -376,81 +386,100 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                 {fmt(v.fecha_traslado)}
               </span>
             </td>
+            {/* Depósitos y saldos no tienen guía, factura ni detracción: en vez
+                de rellenar cinco columnas con "—" —que se lee como datos
+                faltantes— se fusionan en una sola celda con su propia lectura.
+                Fechas y monto siguen en sus columnas, así la vista mantiene la
+                alineación de libro contable. */}
+            {(isDeposito || isSaldo) ? (
+              <td colSpan={5} className="px-3 py-2.5" style={{ overflow: 'hidden' }}>
+                <div className="flex items-center gap-2 min-w-0">
+                  {isDeposito
+                    ? <ArrowDownCircle size={13} style={{ color: '#16A34A', flexShrink: 0 }} />
+                    : <Clock size={13} style={{ color: '#B45309', flexShrink: 0 }} />}
+                  <span className="badge-pill shrink-0" style={
+                    isDeposito
+                      ? { background: '#DCFCE7', color: '#14532D', fontSize: 11 }
+                      : { background: '#FFF0CC', color: '#92400E', fontSize: 11 }
+                  }>
+                    {isDeposito ? 'Depósito' : 'Saldo anterior'}
+                  </span>
+                  <span style={{ color: 'var(--slate)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {isDeposito
+                      ? (v.descripcion !== 'Depósito recibido' ? v.descripcion : '')
+                      : v.mes}
+                  </span>
+
+                  {/* Efecto sobre la deuda, en la misma fila que el depósito */}
+                  {isDeposito && !hasFilters && ledgerMap.get(v.id) && (() => {
+                    const lp = ledgerMap.get(v.id)!;
+                    const saldado = lp.after <= 0;
+                    return (
+                      <span className="flex items-center shrink-0" style={{ gap: 5, marginLeft: 4, fontSize: 10.5, color: 'var(--slate)' }}>
+                        <span style={{ color: 'var(--dust)' }}>·</span>
+                        <span>Debían</span>
+                        <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{fmtMoney(lp.before)}</span>
+                        <ArrowRight size={10} style={{ color: 'var(--dust)' }} />
+                        <span>{saldado ? 'Saldo' : 'Quedan'}</span>
+                        <span style={{ fontWeight: 700, color: saldado ? '#16A34A' : 'var(--signal)' }}>
+                          {saldado ? '✓ al día' : fmtMoney(lp.after)}
+                        </span>
+                      </span>
+                    );
+                  })()}
+                </div>
+              </td>
+            ) : (
+            <>
             <td className="px-3 py-2.5" style={{ overflow: 'hidden' }}>
-              {isDeposito ? (
-                <span className="flex items-center gap-2 min-w-0">
-                  <span className="badge-pill shrink-0" style={{ background: '#DCFCE7', color: '#14532D', fontSize: 11 }}>Depósito</span>
-                  <span style={{ color: 'var(--slate)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.descripcion !== 'Depósito recibido' ? v.descripcion : ''}</span>
-                </span>
-              ) : isSaldo ? (
-                <span className="flex items-center gap-2 min-w-0">
-                  <span className="badge-pill shrink-0" style={{ background: '#FFF0CC', color: '#92400E', fontSize: 11 }}>Saldo ant.</span>
-                  <span style={{ color: 'var(--slate)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.mes}</span>
-                </span>
-              ) : (
-                <span style={{ fontWeight: 450, color: 'var(--ink)', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.descripcion}</span>
-              )}
+              <span style={{ fontWeight: 450, color: 'var(--ink)', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.descripcion}</span>
             </td>
             {/* Bloque GUÍA */}
             <td className="px-3 py-2.5" style={{ borderLeft: divisor(3) }}>
-              {(isDeposito || isSaldo) ? (
-                <span style={{ color: 'var(--dust)', fontSize: 12 }}>—</span>
-              ) : (
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span style={ESTILO_NUM_DOC}>
-                    {formatDoc(v.numero_guia) || '—'}
-                  </span>
-                  {v.drive_id_guia && (
-                    <BotonVerDoc
-                      title="Ver guía adjunta"
-                      onClick={() => setPreview({ driveId: v.drive_id_guia!, label: v.numero_guia ? `Guía ${v.numero_guia}` : 'Guía' })}
-                    />
-                  )}
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span style={ESTILO_NUM_DOC}>
+                  {formatDoc(v.numero_guia) || '—'}
+                </span>
+                {v.drive_id_guia && (
+                  <BotonVerDoc
+                    title="Ver guía adjunta"
+                    onClick={() => setPreview({ driveId: v.drive_id_guia!, label: v.numero_guia ? `Guía ${v.numero_guia}` : 'Guía' })}
+                  />
+                )}
+              </div>
             </td>
 
             {/* Bloque FACTURA — estado + número van juntos */}
             <td className="px-3 py-2.5" style={{ borderLeft: divisor(4) }}>
-              {(isDeposito || isSaldo) ? (
-                <span style={{ color: 'var(--dust)', fontSize: 12 }}>—</span>
-              ) : (
-                <BadgeEstado estado={v.estado} />
-              )}
+              <BadgeEstado estado={v.estado} />
             </td>
 
             <td className="px-3 py-2.5">
-              {(isDeposito || isSaldo) ? (
-                <span style={{ color: 'var(--dust)', fontSize: 12 }}>—</span>
-              ) : (
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span style={ESTILO_NUM_DOC}>
-                    {formatDoc(v.numero_factura) || '—'}
-                  </span>
-                  {v.drive_id_factura && (
-                    <BotonVerDoc
-                      title="Ver factura adjunta"
-                      onClick={() => setPreview({ driveId: v.drive_id_factura!, label: v.numero_factura ? `Factura ${v.numero_factura}` : 'Factura' })}
-                    />
-                  )}
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span style={ESTILO_NUM_DOC}>
+                  {formatDoc(v.numero_factura) || '—'}
+                </span>
+                {v.drive_id_factura && (
+                  <BotonVerDoc
+                    title="Ver factura adjunta"
+                    onClick={() => setPreview({ driveId: v.drive_id_factura!, label: v.numero_factura ? `Factura ${v.numero_factura}` : 'Factura' })}
+                  />
+                )}
+              </div>
             </td>
 
             {/* Bloque COBRO */}
             <td className="px-3 py-2.5" style={{ borderLeft: divisor(6) }}>
-              {(isDeposito || isSaldo) ? (
-                <span style={{ color: 'var(--dust)', fontSize: 12 }}>—</span>
-              ) : (
-                <ToggleDetraccion
-                  detraccion={v.detraccion}
-                  viajeId={v.id}
-                  descripcion={v.descripcion}
-                  onToggle={handleToggle}
-                  loading={toggling === v.id}
-                />
-              )}
+              <ToggleDetraccion
+                detraccion={v.detraccion}
+                viajeId={v.id}
+                descripcion={v.descripcion}
+                onToggle={handleToggle}
+                loading={toggling === v.id}
+              />
             </td>
+            </>
+            )}
 
             <td className="px-4 py-3 text-right">
               <span style={{
@@ -504,42 +533,6 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
               )}
             </td>
           </tr>
-
-          {/* Deposit context row */}
-          {isDeposito && !hasFilters && ledgerMap.get(v.id) && (() => {
-            const lp = ledgerMap.get(v.id)!;
-            const saldado = lp.after <= 0;
-            return (
-              <tr key={`${v.id}-ctx`}>
-                <td colSpan={10} style={{ padding: '4px 14px 8px 14px', background: '#F7FFF9', borderBottom: '1px solid rgba(20,20,19,.06)' }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-
-                    <span style={{ fontSize: 10, color: 'var(--slate)', fontWeight: 450 }}>Debían</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)', letterSpacing: '-0.01em' }}>{fmtMoney(lp.before)}</span>
-
-                    <span style={{ fontSize: 11, color: 'var(--dust)', lineHeight: 1 }}>·</span>
-
-                    <span style={{ fontSize: 10, color: 'var(--slate)', fontWeight: 450 }}>Pagaron</span>
-                    <span className="badge-pill" style={{ background: '#DCFCE7', color: '#16A34A', fontSize: 11, padding: '1px 8px' }}>
-                      +{fmtMoney(Number(v.monto))}
-                    </span>
-
-                    <span style={{ fontSize: 11, color: 'var(--dust)', lineHeight: 1 }}>→</span>
-
-                    <span style={{ fontSize: 10, color: 'var(--slate)', fontWeight: 450 }}>{saldado ? 'Saldo' : 'Quedan'}</span>
-                    <span className="badge-pill" style={{
-                      background: saldado ? '#DCFCE7' : '#FFF3EE',
-                      color: saldado ? '#16A34A' : 'var(--signal)',
-                      fontSize: 11, padding: '1px 8px',
-                    }}>
-                      {saldado ? '✓ al día' : fmtMoney(lp.after)}
-                    </span>
-
-                  </div>
-                </td>
-              </tr>
-            );
-          })()}
 
           {/* Drive docs row */}
           {!readOnly && expandedId === v.id && (
@@ -775,12 +768,16 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                         if (el && v.fecha_traslado && !v.fecha_traslado.startsWith('1900'))
                           cardRefs.current.set(v.fecha_traslado, el);
                       }}
-                      className={`mb-2 overflow-hidden ${deletingId === v.id ? 'anim-fade-out' : 'anim-fade-up'}`}
+                      className={`mb-1.5 overflow-hidden ${deletingId === v.id ? 'anim-fade-out' : 'anim-fade-up'}`}
                       style={{
                         background: isDeposito ? '#F0FFF4' : isSaldo ? '#FFF8F0' : status.background,
-                        borderRadius: '20px',
-                        boxShadow: 'var(--shadow-card)',
-                        borderLeft: isDeposito || isSaldo ? 'none' : status.borderLeft,
+                        borderRadius: '14px',
+                        /* --shadow-card (48px de difusión) sirve para una tarjeta
+                           suelta; repetida en una lista densa emborrona todo.
+                           Un filete y una sombra corta separan igual y ocupan menos. */
+                        border: '1px solid rgba(20,20,19,.06)',
+                        boxShadow: '0 1px 2px rgba(20,20,19,.04)',
+                        borderLeft: isDeposito ? '3px solid #16A34A' : isSaldo ? '3px solid #D97706' : status.borderLeft,
                         outline: isFlash ? '2px solid var(--signal-light)' : 'none',
                         animationDelay: deletingId === v.id ? '0ms' : `${idx * 40}ms`,
                       }}>
@@ -789,27 +786,28 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                       <button
                         type="button"
                         onClick={() => setExpandedId(abierta ? null : v.id)}
-                        className="w-full text-left flex items-start justify-between px-4 py-3.5"
+                        className="w-full text-left flex items-center justify-between gap-2 px-3.5 py-2.5"
                       >
+                        {/* Dos líneas fijas: título + una sola línea de metadatos.
+                            Todo lo que antes ocupaba una tercera línea vive ahora
+                            en esa fila de meta, separado por puntos. */}
                         <div className="flex-1 min-w-0">
                           {isDeposito ? (
                             <>
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="badge-pill" style={{ background: '#DCFCE7', color: '#14532D', fontSize: 11 }}>Depósito recibido</span>
-                                <span className="text-xs" style={{ color: 'var(--slate)' }}>{fmt(v.fecha_traslado)}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="badge-pill shrink-0" style={{ background: '#DCFCE7', color: '#14532D', fontSize: 10, padding: '1px 7px' }}>Depósito</span>
+                                <span style={{ fontSize: 11, color: 'var(--slate)' }}>{fmtCorto(v.fecha_traslado)}</span>
                               </div>
                               {!hasFilters && ledgerMap.get(v.id) && (() => {
                                 const lp = ledgerMap.get(v.id)!;
                                 const saldado = lp.after <= 0;
                                 return (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 4 }}>
-                                    <span style={{ fontSize: 10, color: 'var(--slate)' }}>Debían</span>
-                                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>{fmtMoney(lp.before)}</span>
-                                    <span style={{ fontSize: 10, color: 'var(--dust)' }}>·</span>
-                                    <span style={{ fontSize: 10, color: 'var(--slate)' }}>Pagaron</span>
-                                    <span className="badge-pill" style={{ background: '#DCFCE7', color: '#16A34A', fontSize: 10, padding: '1px 7px' }}>+{fmtMoney(Number(v.monto))}</span>
-                                    <span style={{ fontSize: 10, color: 'var(--dust)' }}>→</span>
-                                    <span className="badge-pill" style={{ background: saldado ? '#DCFCE7' : '#FFF3EE', color: saldado ? '#16A34A' : 'var(--signal)', fontSize: 10, padding: '1px 7px' }}>
+                                  <div className="flex items-center gap-1 mt-1 truncate" style={{ fontSize: 10, color: 'var(--slate)' }}>
+                                    <span>Debían</span>
+                                    <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{fmtMoney(lp.before)}</span>
+                                    <ArrowRight size={9} style={{ color: 'var(--dust)', flexShrink: 0 }} />
+                                    <span>{saldado ? 'Saldo' : 'Quedan'}</span>
+                                    <span style={{ fontWeight: 700, color: saldado ? '#16A34A' : 'var(--signal)' }}>
                                       {saldado ? '✓ al día' : fmtMoney(lp.after)}
                                     </span>
                                   </div>
@@ -817,49 +815,42 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                               })()}
                             </>
                           ) : isSaldo ? (
-                            <p className="font-semibold text-sm" style={{ color: '#92400E' }}>Saldo anterior — {v.mes}</p>
+                            <p className="font-semibold truncate" style={{ color: '#92400E', fontSize: 13 }}>Saldo anterior — {v.mes}</p>
                           ) : (
                             <>
-                              <p className="font-medium text-sm truncate" style={{ color: 'var(--ink)' }}>{v.descripcion}</p>
-                              <p className="text-xs mt-0.5" style={{ color: 'var(--slate)' }}>
-                                {fmt(v.fecha_carga)} → {fmt(v.fecha_traslado)}
-                              </p>
-                              {/* Resumen de una línea cuando está cerrada, para no
-                                  tener que abrirla solo para saber cómo va */}
-                              {!abierta && (
-                                <div className="flex items-center gap-1.5 mt-1.5" style={{ fontSize: 10 }}>
-                                  <span style={{ color: v.estado === 'facturado' ? '#16A34A' : 'var(--signal)', fontWeight: 600 }}>
-                                    {v.estado === 'facturado' ? 'Facturado' : 'Pendiente'}
+                              <p className="font-medium truncate" style={{ color: 'var(--ink)', fontSize: 13, lineHeight: 1.3 }}>{v.descripcion}</p>
+                              <div className="flex items-center gap-1.5 mt-0.5" style={{ fontSize: 10, color: 'var(--slate)', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                                <span>{fmtCorto(v.fecha_carga)} → {fmtCorto(v.fecha_traslado)}</span>
+                                <span style={{ color: 'var(--dust)' }}>·</span>
+                                <span style={{ color: v.estado === 'facturado' ? '#16A34A' : 'var(--signal)', fontWeight: 600 }}>
+                                  {v.estado === 'facturado' ? 'Facturado' : 'Pendiente'}
+                                </span>
+                                {v.detraccion === 'pendiente' && (
+                                  <>
+                                    <span style={{ color: 'var(--dust)' }}>·</span>
+                                    <span style={{ color: 'var(--signal)' }}>det.</span>
+                                  </>
+                                )}
+                                {docsAdjuntos > 0 && (
+                                  <span className="flex items-center gap-0.5" style={{ color: 'var(--dust)' }}>
+                                    <Paperclip size={8} />
+                                    {docsAdjuntos}
                                   </span>
-                                  {v.detraccion === 'pendiente' && (
-                                    <>
-                                      <span style={{ color: 'var(--dust)' }}>·</span>
-                                      <span style={{ color: 'var(--signal)' }}>det. pend.</span>
-                                    </>
-                                  )}
-                                  {docsAdjuntos > 0 && (
-                                    <>
-                                      <span style={{ color: 'var(--dust)' }}>·</span>
-                                      <span className="flex items-center gap-1" style={{ color: 'var(--slate)' }}>
-                                        <Paperclip size={9} />
-                                        {docsAdjuntos}
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                              )}
+                                )}
+                              </div>
                             </>
                           )}
                         </div>
-                        <div className="ml-3 shrink-0 flex items-center gap-1.5">
-                          <span className="font-bold text-base" style={{
-                            color: isDeposito ? '#16A34A' : 'var(--ink)', letterSpacing: '-0.02em', whiteSpace: 'nowrap',
+                        <div className="shrink-0 flex items-center gap-1">
+                          <span className="font-bold" style={{
+                            fontSize: 14, color: isDeposito ? '#16A34A' : 'var(--ink)',
+                            letterSpacing: '-0.02em', whiteSpace: 'nowrap',
                           }}>
                             {isDeposito ? '+' : ''}S/ {Number(v.monto).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                           </span>
                           {abierta
-                            ? <ChevronUp size={14} style={{ color: 'var(--slate)' }} />
-                            : <ChevronDown size={14} style={{ color: 'var(--dust)' }} />}
+                            ? <ChevronUp size={13} style={{ color: 'var(--slate)' }} />
+                            : <ChevronDown size={13} style={{ color: 'var(--dust)' }} />}
                         </div>
                       </button>
 

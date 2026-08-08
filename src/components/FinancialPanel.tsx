@@ -34,15 +34,27 @@ interface MonthGroup {
 const AMBAR = '#E9A23B';
 const AMBAR_SUAVE = '#FBE3B8';
 
-/** Agrupa los documentos de un mes por serie, conservando el orden ya calculado. */
-function agruparPorSerie(items: DocItem[]): [string, DocItem[]][] {
-  const map = new Map<string, DocItem[]>();
+/** Paleta por tipo de documento: la serie sola (E001, EG03) no dice nada a
+    quien no la conoce de memoria, así que el color y la etiqueta la traducen. */
+const ESTILO_TIPO = {
+  factura: { nombre: 'Facturas', color: 'var(--signal)', punto: 'var(--signal-light)', fondo: '#FFF6F0' },
+  guia: { nombre: 'Guías', color: '#2563EB', punto: '#60A5FA', fondo: '#F1F6FE' },
+} as const;
+
+/**
+ * Agrupa los documentos de un mes por tipo y serie, conservando el orden ya
+ * calculado (facturas primero). Se agrupa también por tipo y no solo por serie
+ * para que una serie nueva del otro tipo no caiga en el bloque equivocado.
+ */
+function agruparPorSerie(items: DocItem[]): { clave: string; tipo: DocItem['tipo']; serie: string; docs: DocItem[] }[] {
+  const map = new Map<string, { clave: string; tipo: DocItem['tipo']; serie: string; docs: DocItem[] }>();
   for (const it of items) {
-    const k = it.numero ? it.serie : 'Otros';
-    if (!map.has(k)) map.set(k, []);
-    map.get(k)!.push(it);
+    const serie = it.numero ? it.serie : 'Otros';
+    const clave = `${it.tipo}|${serie}`;
+    if (!map.has(clave)) map.set(clave, { clave, tipo: it.tipo, serie, docs: [] });
+    map.get(clave)!.docs.push(it);
   }
-  return Array.from(map.entries());
+  return Array.from(map.values());
 }
 
 
@@ -246,30 +258,39 @@ export default function FinancialPanel({ initialViajes }: { initialViajes?: Viaj
                       )}
                       {/* Agrupado por serie: la serie se escribe una sola vez y
                           los correlativos caen en cuadrícula, fáciles de barrer con la vista */}
-                      {agruparPorSerie(group.items).map(([serie, docs]) => (
-                        <div key={serie} style={{ padding: '4px 0 6px' }}>
-                          <p style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--slate)', padding: '0 4px 4px', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
-                            {serie}
-                          </p>
+                      {agruparPorSerie(group.items).map(({ clave, tipo, serie, docs }) => {
+                        const est = ESTILO_TIPO[tipo];
+                        return (
+                        <div key={clave} style={{ padding: '4px 0 6px' }}>
+                          {/* Punto + nombre del tipo + serie: se entiende sin
+                              saberse de memoria que E001 es factura */}
+                          <div className="flex items-center" style={{ gap: 5, padding: '0 4px 4px' }}>
+                            <span style={{ width: 6, height: 6, borderRadius: 2, background: est.punto, flexShrink: 0 }} />
+                            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: est.color }}>
+                              {est.nombre}
+                            </span>
+                            <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.06em', color: 'var(--dust)', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
+                              {serie}
+                            </span>
+                            <span style={{ fontSize: 9, color: 'var(--dust)', marginLeft: 'auto' }}>{docs.length}</span>
+                          </div>
                           <div className="grid grid-cols-2 gap-1">
-                            {docs.map(item => {
-                              const color = item.tipo === 'factura' ? 'var(--signal-light)' : '#60A5FA';
-                              return (
+                            {docs.map(item => (
                                 <button
                                   key={item.id}
                                   type="button"
-                                  title={`${item.tipo === 'factura' ? 'Factura' : 'Guía'} ${item.serie}${item.numero ? '-' + item.numero : ''}`}
+                                  title={`${tipo === 'factura' ? 'Factura' : 'Guía'} ${item.serie}${item.numero ? '-' + item.numero : ''}`}
                                   onClick={() => setPreview({ driveId: item.driveId, label: item.label })}
                                   className="flex items-center rounded-md transition-all cursor-pointer"
                                   style={{
                                     gap: 3,
                                     padding: '4px 5px',
-                                    background: 'var(--canvas)',
-                                    borderLeft: `2px solid ${color}`,
+                                    background: est.fondo,
+                                    borderLeft: `2px solid ${est.punto}`,
                                     minWidth: 0,
                                   }}
                                   onMouseEnter={e => { const t = e.currentTarget as HTMLElement; t.style.background = 'var(--white)'; t.style.boxShadow = 'var(--shadow-float)'; }}
-                                  onMouseLeave={e => { const t = e.currentTarget as HTMLElement; t.style.background = 'var(--canvas)'; t.style.boxShadow = ''; }}
+                                  onMouseLeave={e => { const t = e.currentTarget as HTMLElement; t.style.background = est.fondo; t.style.boxShadow = ''; }}
                                 >
                                   <IconoPdf size={12} />
                                   <span
@@ -279,11 +300,11 @@ export default function FinancialPanel({ initialViajes }: { initialViajes?: Viaj
                                     {item.numero || item.serie}
                                   </span>
                                 </button>
-                              );
-                            })}
+                            ))}
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

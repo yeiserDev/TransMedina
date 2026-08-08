@@ -70,7 +70,7 @@ export default function ClockWidget() {
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
   return (
-    <div className="card-stadium overflow-hidden">
+    <div className="card-stadium overflow-hidden" style={{ borderRadius: 'var(--r-panel)' }}>
 
       {/* Clock */}
       <div className="px-5 py-6" style={{ background: 'var(--ink)' }}>
