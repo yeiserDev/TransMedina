@@ -16,11 +16,15 @@ export async function GET(req: NextRequest) {
     mes: searchParams.get('mes') ?? undefined,
     estado: (searchParams.get('estado') as FiltrosViaje['estado']) ?? undefined,
     detraccion: (searchParams.get('detraccion') as FiltrosViaje['detraccion']) ?? undefined,
+    fecha_desde: searchParams.get('fecha_desde') ?? undefined,
+    fecha_hasta: searchParams.get('fecha_hasta') ?? undefined,
   };
 
   if (filtros.mes) query = query.eq('mes', filtros.mes);
   if (filtros.estado) query = query.eq('estado', filtros.estado);
   if (filtros.detraccion) query = query.eq('detraccion', filtros.detraccion);
+  if (filtros.fecha_desde) query = query.gte('fecha_traslado', filtros.fecha_desde);
+  if (filtros.fecha_hasta) query = query.lte('fecha_traslado', filtros.fecha_hasta);
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

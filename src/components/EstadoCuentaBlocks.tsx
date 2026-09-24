@@ -50,7 +50,7 @@ interface Props {
   readOnly?: boolean;
 }
 
-export default function EstadoCuentaBlocks({ viajes, readOnly: _readOnly = false }: Props) {
+export default function EstadoCuentaBlocks({ viajes }: Props) {
   const { blocks } = useMemo(() => {
     const sorted = [...viajes].sort((a, b) => {
       const da = claveFecha(a.fecha_traslado);

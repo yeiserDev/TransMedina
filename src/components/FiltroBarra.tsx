@@ -2,12 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { FiltrosViaje, EstadoViaje, EstadoDetraccion } from '@/types';
-import { X, Check, ChevronDown } from 'lucide-react';
+import { X, Check, ChevronDown, Calendar, FileSpreadsheet } from 'lucide-react';
 
 interface Props {
   filtros: FiltrosViaje;
   meses: string[];
   onChange: (filtros: FiltrosViaje) => void;
+  onExport?: () => void;
+  exportando?: boolean;
+  totalFiltrados?: number;
 }
 
 interface Opcion {
@@ -119,8 +122,6 @@ function PillSelect({
             borderRadius: 16,
             background: 'var(--white)',
             border: '1px solid rgba(20,20,19,.07)',
-            /* --shadow-float es demasiado tenue para un panel que flota sobre
-               las filas: necesita despegarse del fondo con claridad. */
             boxShadow: '0 12px 28px -8px rgba(20,20,19,.20), 0 2px 6px rgba(20,20,19,.06)',
             transformOrigin: 'top left',
           }}
@@ -155,7 +156,6 @@ function PillSelect({
                 onBlur={e => { if (!esta) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               >
                 <span className="flex-1 truncate">{o.label}</span>
-                {/* Hueco reservado siempre: sin él las etiquetas bailan al cambiar de selección */}
                 <span style={{ width: 12, flexShrink: 0, color: 'var(--signal)' }}>
                   {esta && <Check size={12} />}
                 </span>
@@ -168,8 +168,23 @@ function PillSelect({
   );
 }
 
-export default function FiltroBarra({ filtros, meses, onChange }: Props) {
-  const hasFilters = filtros.mes || filtros.estado || filtros.detraccion;
+export default function FiltroBarra({
+  filtros,
+  meses,
+  onChange,
+  onExport,
+  exportando,
+  totalFiltrados,
+}: Props) {
+  const hasFilters = Boolean(
+    filtros.mes ||
+    filtros.estado ||
+    filtros.detraccion ||
+    filtros.fecha_desde ||
+    filtros.fecha_hasta
+  );
+
+  const tieneFechas = Boolean(filtros.fecha_desde || filtros.fecha_hasta);
 
   const opcionesMes: Opcion[] = [
     { value: '', label: 'Todos los meses' },
@@ -178,6 +193,7 @@ export default function FiltroBarra({ filtros, meses, onChange }: Props) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {/* Selector de Mes */}
       <PillSelect
         value={filtros.mes ?? ''}
         onChange={v => onChange({ ...filtros, mes: v || undefined })}
@@ -185,6 +201,73 @@ export default function FiltroBarra({ filtros, meses, onChange }: Props) {
         options={opcionesMes}
       />
 
+      {/* Rango de Fechas (Desde / Hasta) */}
+      <div
+        className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-xs transition-all duration-150"
+        style={{
+          borderRadius: 'var(--r-pill)',
+          border: tieneFechas ? '1.5px solid var(--ink)' : '1px solid rgba(20,20,19,.18)',
+          background: tieneFechas ? 'var(--canvas-lifted)' : 'var(--white)',
+          boxShadow: tieneFechas ? '0 1px 2px rgba(20,20,19,.06)' : 'none',
+        }}
+      >
+        <Calendar size={13} style={{ color: tieneFechas ? 'var(--signal)' : 'var(--slate)', flexShrink: 0 }} />
+        <span style={{ fontSize: 11, color: 'var(--slate)', fontWeight: 500 }}>Desde:</span>
+        <input
+          type="date"
+          value={filtros.fecha_desde ?? ''}
+          onChange={e => onChange({ ...filtros, fecha_desde: e.target.value || undefined })}
+          style={{
+            border: 'none',
+            background: 'transparent',
+            fontSize: 11.5,
+            fontFamily: 'inherit',
+            color: 'var(--ink)',
+            outline: 'none',
+            padding: 0,
+            cursor: 'pointer',
+          }}
+          title="Filtrar desde esta fecha"
+        />
+        <span style={{ fontSize: 11, color: 'var(--dust)', margin: '0 1px' }}>—</span>
+        <span style={{ fontSize: 11, color: 'var(--slate)', fontWeight: 500 }}>Hasta:</span>
+        <input
+          type="date"
+          value={filtros.fecha_hasta ?? ''}
+          onChange={e => onChange({ ...filtros, fecha_hasta: e.target.value || undefined })}
+          style={{
+            border: 'none',
+            background: 'transparent',
+            fontSize: 11.5,
+            fontFamily: 'inherit',
+            color: 'var(--ink)',
+            outline: 'none',
+            padding: 0,
+            cursor: 'pointer',
+          }}
+          title="Filtrar hasta esta fecha"
+        />
+        {tieneFechas && (
+          <button
+            type="button"
+            onClick={() => onChange({ ...filtros, fecha_desde: undefined, fecha_hasta: undefined })}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--slate)',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+            title="Limpiar rango de fechas"
+          >
+            <X size={12} />
+          </button>
+        )}
+      </div>
+
+      {/* Estado Factura */}
       <PillSelect
         value={filtros.estado ?? ''}
         onChange={v => onChange({ ...filtros, estado: (v as EstadoViaje) || undefined })}
@@ -196,6 +279,7 @@ export default function FiltroBarra({ filtros, meses, onChange }: Props) {
         ]}
       />
 
+      {/* Detracción */}
       <PillSelect
         value={filtros.detraccion ?? ''}
         onChange={v => onChange({ ...filtros, detraccion: (v as EstadoDetraccion) || undefined })}
@@ -207,8 +291,10 @@ export default function FiltroBarra({ filtros, meses, onChange }: Props) {
         ]}
       />
 
+      {/* Botón Limpiar Todos los Filtros */}
       {hasFilters && (
         <button
+          type="button"
           onClick={() => onChange({})}
           className="flex items-center gap-1 px-3 py-2 text-xs transition-opacity hover:opacity-70"
           style={{
@@ -217,10 +303,34 @@ export default function FiltroBarra({ filtros, meses, onChange }: Props) {
             color: 'var(--signal)',
             background: 'transparent',
             fontWeight: 450,
+            cursor: 'pointer',
           }}
         >
           <X size={11} />
-          Limpiar
+          Limpiar filtros
+        </button>
+      )}
+
+      {/* Botón rápido Exportar Excel si se pasa el prop */}
+      {onExport && (
+        <button
+          type="button"
+          onClick={onExport}
+          disabled={exportando || totalFiltrados === 0}
+          className="sm:hidden ml-auto flex items-center gap-1.5 px-3.5 py-2 text-xs transition-all duration-150 cursor-pointer disabled:opacity-40"
+          style={{
+            borderRadius: 'var(--r-pill)',
+            border: '1px solid rgba(20,20,19,.15)',
+            background: 'var(--white)',
+            color: 'var(--ink)',
+            fontWeight: 500,
+            letterSpacing: '-0.01em',
+            boxShadow: '0 1px 2px rgba(20,20,19,.04)',
+          }}
+          title="Descargar Excel con los datos filtrados"
+        >
+          <FileSpreadsheet size={13} style={{ color: '#16A34A' }} />
+          <span>{exportando ? 'Generando…' : `Excel ${totalFiltrados !== undefined ? `(${totalFiltrados})` : ''}`}</span>
         </button>
       )}
     </div>

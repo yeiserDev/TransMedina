@@ -1,7 +1,7 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Paperclip, ArrowDownCircle, ArrowRight, Clock, ClipboardList, Copy, Check, X, Eye } from 'lucide-react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Paperclip, ArrowDownCircle, ArrowRight, Clock, ClipboardList, Copy, Check, X, Eye, FileSpreadsheet } from 'lucide-react';
 import { Viaje, ViajeInsert, FiltrosViaje, EstadoDetraccion, TipoRegistro } from '@/types';
 import { formatDoc } from '@/lib/documentos';
 import { BadgeEstado, ToggleDetraccion } from './BadgeEstado';
@@ -125,8 +125,9 @@ interface Props {
 }
 
 export default function ViajesTable({ readOnly = false, initialViajes, secretToken }: Props) {
-  const [viajes, setViajes] = useState<Viaje[]>(initialViajes ?? []);
+  const [allViajes, setAllViajes] = useState<Viaje[]>(initialViajes ?? []);
   const [loading, setLoading] = useState(!initialViajes);
+  const [exportando, setExportando] = useState(false);
   const [filtros, setFiltros] = useState<FiltrosViaje>({});
   const [showForm, setShowForm] = useState(false);
   const [newTipo, setNewTipo] = useState<TipoRegistro>('viaje');
@@ -150,34 +151,94 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const scrollBoxRef = useRef<HTMLDivElement>(null);
-  // Evita el fetch duplicado en el montaje cuando ya hay datos del server
-  const skipInitialFetch = useRef(initialViajes !== undefined);
 
-  const fetchViajes = useCallback(async () => {
-    if (readOnly) return;
-    if (skipInitialFetch.current) {
-      skipInitialFetch.current = false;
-      return;
-    }
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (filtros.mes) params.set('mes', filtros.mes);
-    if (filtros.estado) params.set('estado', filtros.estado);
-    if (filtros.detraccion) params.set('detraccion', filtros.detraccion);
+  const refetchAll = async () => {
     try {
-      const res = await fetch(`/api/viajes?${params}`);
+      const res = await fetch('/api/viajes');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setViajes(Array.isArray(data) ? data : []);
+      setAllViajes(Array.isArray(data) ? data : []);
     } catch {
-      // Sin catch, un fetch fallido dejaba la tabla girando para siempre
-      toast.error('No se pudieron cargar los viajes');
-    } finally {
-      setLoading(false);
+      toast.error('No se pudieron recargar los viajes');
     }
-  }, [filtros, readOnly]);
+  };
 
-  useEffect(() => { fetchViajes(); }, [fetchViajes]);
+  useEffect(() => {
+    if (initialViajes) return;
+    let ignore = false;
+    fetch('/api/viajes')
+      .then(r => r.json())
+      .then(data => {
+        if (!ignore) {
+          setAllViajes(Array.isArray(data) ? data : []);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          toast.error('No se pudieron recargar los viajes');
+          setLoading(false);
+        }
+      });
+    return () => { ignore = true; };
+  }, [initialViajes]);
+
+  // Filtrado instantáneo en memoria por mes, estado, detracción y fechas
+  const viajes = useMemo(() => {
+    return allViajes.filter(v => {
+      if (filtros.mes && v.mes !== filtros.mes) return false;
+      if (filtros.estado && v.estado !== filtros.estado) return false;
+      if (filtros.detraccion && v.detraccion !== filtros.detraccion) return false;
+      const fTraslado = v.fecha_traslado && !v.fecha_traslado.startsWith('1900') ? v.fecha_traslado : null;
+      const fCarga = v.fecha_carga && !v.fecha_carga.startsWith('1900') ? v.fecha_carga : null;
+      const fRef = fTraslado ?? fCarga;
+      if (filtros.fecha_desde) {
+        if (!fRef || fRef < filtros.fecha_desde) return false;
+      }
+      if (filtros.fecha_hasta) {
+        if (!fRef || fRef > filtros.fecha_hasta) return false;
+      }
+      return true;
+    });
+  }, [allViajes, filtros]);
+
+  const handleExportExcel = async () => {
+    if (viajes.length === 0) {
+      toast.error('No hay registros para exportar con los filtros seleccionados');
+      return;
+    }
+    setExportando(true);
+    let url: string | null = null;
+    try {
+      const res = await fetch('/api/reportes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ viajes, filtros }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get('Content-Disposition') ?? '';
+      const filename = cd.split('filename="')[1]?.replace('"', '') ?? 'TransMedina_Viajes.xlsx';
+
+      url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast.success(`Excel exportado correctamente (${viajes.length} registros)`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error desconocido';
+      toast.error(`No se pudo exportar el Excel: ${msg}`);
+    } finally {
+      if (url) setTimeout(() => URL.revokeObjectURL(url!), 10_000);
+      setExportando(false);
+    }
+  };
 
   /* Estira la tabla hasta el borde inferior de la ventana. Se mide la
      posición del contenedor en el documento (no en el viewport) para que el
@@ -221,8 +282,14 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
     return () => window.removeEventListener('goto-viaje-date', handler);
   }, []);
 
-  const meses = useMemo(() => Array.from(new Set(viajes.map((v) => v.mes))), [viajes]);
-  const hasFilters = !!(filtros.mes || filtros.estado || filtros.detraccion);
+  const meses = useMemo(() => Array.from(new Set(allViajes.map((v) => v.mes).filter(Boolean))), [allViajes]);
+  const hasFilters = Boolean(
+    filtros.mes ||
+    filtros.estado ||
+    filtros.detraccion ||
+    filtros.fecha_desde ||
+    filtros.fecha_hasta
+  );
 
   // Group by year (sort descending)
   const byYear = useMemo((): [string, Viaje[]][] => {
@@ -288,7 +355,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
     }
     toast.success(editViaje ? 'Registro actualizado' : 'Registro guardado');
     setEditViaje(undefined);
-    await fetchViajes();
+    await refetchAll();
     window.dispatchEvent(new CustomEvent('viajes-updated'));
   };
 
@@ -301,7 +368,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
     setDeletingId(null);
     if (res.ok) {
       toast.success('Registro eliminado');
-      await fetchViajes();
+      await refetchAll();
       window.dispatchEvent(new CustomEvent('viajes-updated'));
     } else toast.error('No se pudo eliminar');
   };
@@ -309,8 +376,11 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
   const handleToggle = async (id: string, valor: EstadoDetraccion) => {
     setToggling(id);
     const res = await fetch(`/api/viajes/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ detraccion: valor }) });
-    if (res.ok) { toast.success(`Detracción: ${valor}`); await fetchViajes(); }
-    else toast.error('No se pudo actualizar');
+    if (res.ok) {
+      toast.success(`Detracción: ${valor}`);
+      setAllViajes(prev => prev.map(v => v.id === id ? { ...v, detraccion: valor } : v));
+      window.dispatchEvent(new CustomEvent('viajes-updated'));
+    } else toast.error('No se pudo actualizar');
     setToggling(null);
   };
 
@@ -331,12 +401,16 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
   const toggleYear = (year: string) => {
     setOpenYears(prev => {
       const next = new Set(prev);
-      next.has(year) ? next.delete(year) : next.add(year);
+      if (next.has(year)) {
+        next.delete(year);
+      } else {
+        next.add(year);
+      }
       return next;
     });
   };
 
-  const renderDesktopRows = (yearViajes: Viaje[], allViajesFlat: Viaje[]) => {
+  const renderDesktopRows = (yearViajes: Viaje[]) => {
     return yearViajes.map((v, idx) => {
       const isDeposito = v.tipo === 'deposito';
       const isSaldo = v.tipo === 'saldo_anterior';
@@ -547,7 +621,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                     numeroFactura={v.numero_factura}
                     onUploaded={(tipo, driveId) => {
                       const field = tipo === 'guias' ? 'drive_id_guia' : 'drive_id_factura';
-                      setViajes(prev => prev.map(vj => vj.id === v.id ? { ...vj, [field]: driveId } : vj));
+                      setAllViajes(prev => prev.map(vj => vj.id === v.id ? { ...vj, [field]: driveId } : vj));
                     }}
                   />
               </td>
@@ -570,26 +644,57 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
           {!readOnly && <p className="eyebrow mb-2">Registros</p>}
           <h1 className="text-4xl" style={{ fontWeight: 500, letterSpacing: '-0.02em' }}>Viajes</h1>
         </div>
-        {!readOnly && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={openFacturas} className="btn-outline" style={{ gap: 6 }}>
-              <ClipboardList size={14} />
-              Facturas pendientes
-            </button>
-            <button onClick={() => openForm('deposito')} className="btn-outline" style={{ gap: 6 }}>
-              <ArrowDownCircle size={14} />
-              Depósito
-            </button>
-            <button onClick={() => openForm('viaje')} className="btn-ink">
-              <Plus size={15} />
-              Nuevo registro
-            </button>
-          </div>
-        )}
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Botón Exportar Excel — siempre disponible (tanto Admin como Solo Lectura) */}
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={exportando || viajes.length === 0}
+            className="btn-outline flex items-center gap-2 transition-all duration-150 cursor-pointer disabled:opacity-40"
+            style={{
+              padding: '9px 18px',
+              fontSize: 13,
+              fontWeight: 500,
+              borderColor: 'rgba(20,20,19,.15)',
+              background: 'var(--white)',
+              color: 'var(--ink)',
+              boxShadow: '0 1px 2px rgba(20,20,19,.04)',
+            }}
+            title="Exportar a Excel los datos con los filtros actuales"
+          >
+            <FileSpreadsheet size={15} style={{ color: '#16A34A' }} />
+            <span>{exportando ? 'Generando Excel…' : `Exportar Excel (${viajes.length})`}</span>
+          </button>
+
+          {!readOnly && (
+            <>
+              <button onClick={openFacturas} className="btn-outline" style={{ gap: 6 }}>
+                <ClipboardList size={14} />
+                Facturas pendientes
+              </button>
+              <button onClick={() => openForm('deposito')} className="btn-outline" style={{ gap: 6 }}>
+                <ArrowDownCircle size={14} />
+                Depósito
+              </button>
+              <button onClick={() => openForm('viaje')} className="btn-ink">
+                <Plus size={15} />
+                Nuevo registro
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Filtros */}
-      {!readOnly && <FiltroBarra filtros={filtros} meses={meses} onChange={setFiltros} />}
+      {/* Filtros — Visibles para todos para permitir filtrar por fechas y exportar */}
+      <FiltroBarra
+        filtros={filtros}
+        meses={meses}
+        onChange={setFiltros}
+        onExport={handleExportExcel}
+        exportando={exportando}
+        totalFiltrados={viajes.length}
+      />
 
       {/* ── Tabla desktop ───────────────────────────────────── */}
       <div className="hidden sm:block card-stadium">
@@ -654,7 +759,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
               </thead>
               <tbody>
                 {hasFilters
-                  ? viajes.map((v, idx) => renderDesktopRows([v], viajes)).flat()
+                  ? viajes.map((v) => renderDesktopRows([v])).flat()
                   : byYear.map(([year, yearViajes]) => {
                     const isOpen = openYears.has(year);
                     const realViajes = yearViajes.filter(v => v.tipo === 'viaje');
@@ -703,7 +808,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                             </div>
                           </td>
                         </tr>
-                        {isOpen && renderDesktopRows(yearViajes, yearViajes)}
+                        {isOpen && renderDesktopRows(yearViajes)}
                       </Fragment>
                     );
                   })
@@ -907,7 +1012,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                                 numeroFactura={v.numero_factura}
                                 onUploaded={(tipo, driveId) => {
                                   const field = tipo === 'guias' ? 'drive_id_guia' : 'drive_id_factura';
-                                  setViajes(prev => prev.map(vj => vj.id === v.id ? { ...vj, [field]: driveId } : vj));
+                                  setAllViajes(prev => prev.map(vj => vj.id === v.id ? { ...vj, [field]: driveId } : vj));
                                 }}
                               />
                             </div>

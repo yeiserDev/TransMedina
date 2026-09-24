@@ -28,6 +28,8 @@ export interface FiltrosViaje {
   estado?: EstadoViaje;
   detraccion?: EstadoDetraccion;
   descripcion?: string;
+  fecha_desde?: string;
+  fecha_hasta?: string;
 }
 
 export interface ResumenMensual {

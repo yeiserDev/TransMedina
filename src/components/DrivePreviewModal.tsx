@@ -1,7 +1,7 @@
 'use client';
 
 import { X, ExternalLink } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 
 interface Props {
@@ -11,15 +11,20 @@ interface Props {
   secretToken?: string;
 }
 
+const emptySubscribe = () => () => {};
+
 export default function DrivePreviewModal({ driveId, label, onClose, secretToken }: Props) {
   const src = secretToken
     ? `/api/drive/preview?fileId=${encodeURIComponent(driveId)}&t=${encodeURIComponent(secretToken)}`
     : `/api/drive/preview?fileId=${encodeURIComponent(driveId)}`;
 
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
 
   useEffect(() => {
-    setMounted(true);
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);

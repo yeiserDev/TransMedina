@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 
 function esPucallpa(descripcion: string): boolean {

@@ -1,19 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
-import ExcelJS from 'exceljs';
+import { generarExcelViajes } from '@/lib/excel-export';
+import { FiltrosViaje, Viaje } from '@/types';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 
 export async function GET(req: NextRequest) {
-
   const { searchParams } = new URL(req.url);
   const mes = searchParams.get('mes');
   const tipo = searchParams.get('tipo') ?? 'excel'; // 'excel' | 'resumen'
+  const estado = searchParams.get('estado') as FiltrosViaje['estado'];
+  const detraccion = searchParams.get('detraccion') as FiltrosViaje['detraccion'];
+  const fechaDesde = searchParams.get('fecha_desde');
+  const fechaHasta = searchParams.get('fecha_hasta');
 
   const supabase = await createAdminClient();
   let query = supabase.from('viajes').select('*').order('fecha_traslado', { ascending: true });
+
   if (mes) query = query.eq('mes', mes);
+  if (estado) query = query.eq('estado', estado);
+  if (detraccion) query = query.eq('detraccion', detraccion);
+  if (fechaDesde) query = query.gte('fecha_traslado', fechaDesde);
+  if (fechaHasta) query = query.lte('fecha_traslado', fechaHasta);
 
   const { data: viajes, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -23,91 +30,74 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(resumen);
   }
 
-  // Generar Excel
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'TransMedina';
-  workbook.created = new Date();
-
-  const sheet = workbook.addWorksheet('Viajes', {
-    pageSetup: { orientation: 'landscape', fitToPage: true },
+  const baseUrl = req.headers.get('origin') ?? process.env.NEXTAUTH_URL ?? '';
+  const buffer = await generarExcelViajes({
+    viajes: (viajes ?? []) as Viaje[],
+    filtros: {
+      mes: mes ?? undefined,
+      estado: estado ?? undefined,
+      detraccion: detraccion ?? undefined,
+      fecha_desde: fechaDesde ?? undefined,
+      fecha_hasta: fechaHasta ?? undefined,
+    },
+    baseUrl,
   });
 
-  // Estilo de cabecera
-  sheet.columns = [
-    { header: 'F. Carga', key: 'fecha_carga', width: 12 },
-    { header: 'F. Traslado', key: 'fecha_traslado', width: 12 },
-    { header: 'Mes', key: 'mes', width: 16 },
-    { header: 'Descripción', key: 'descripcion', width: 20 },
-    { header: 'N° Guía', key: 'numero_guia', width: 16 },
-    { header: 'Estado', key: 'estado', width: 12 },
-    { header: 'N° Factura', key: 'numero_factura', width: 14 },
-    { header: 'Detracción', key: 'detraccion', width: 14 },
-    { header: 'Monto (S/)', key: 'monto', width: 14 },
-  ];
-
-  const headerRow = sheet.getRow(1);
-  headerRow.eachCell((cell) => {
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1D4ED8' } };
-    cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
-    cell.alignment = { vertical: 'middle', horizontal: 'center' };
-    cell.border = {
-      bottom: { style: 'medium', color: { argb: 'FFFFFF' } },
-    };
-  });
-  headerRow.height = 24;
-
-  (viajes ?? []).forEach((v, i) => {
-    const row = sheet.addRow({
-      fecha_carga: v.fecha_carga,
-      fecha_traslado: v.fecha_traslado,
-      mes: v.mes,
-      descripcion: v.descripcion,
-      numero_guia: v.numero_guia ?? '',
-      estado: v.estado === 'facturado' ? 'Facturado' : 'Pendiente',
-      numero_factura: v.numero_factura ?? '',
-      detraccion: v.detraccion === 'realizado' ? 'Realizado' : 'Pendiente',
-      monto: Number(v.monto),
-    });
-
-    if (i % 2 === 1) {
-      row.eachCell((cell) => {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EFF6FF' } };
-      });
-    }
-
-    // Colorear detracción pendiente
-    const detCell = row.getCell('detraccion');
-    if (v.detraccion === 'pendiente') {
-      detCell.font = { color: { argb: 'C2410C' }, bold: true };
-    }
-
-    const montoCell = row.getCell('monto');
-    montoCell.numFmt = '"S/ "#,##0.00';
-    montoCell.alignment = { horizontal: 'right' };
+  const filename = generarNombreArchivo({
+    mes: mes ?? undefined,
+    fecha_desde: fechaDesde ?? undefined,
+    fecha_hasta: fechaHasta ?? undefined,
   });
 
-  // Fila de totales
-  const totalRow = sheet.addRow({
-    descripcion: 'TOTAL',
-    monto: (viajes ?? []).reduce((s, v) => s + Number(v.monto), 0),
-  });
-  totalRow.eachCell((cell) => {
-    cell.font = { bold: true };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'DBEAFE' } };
-  });
-  totalRow.getCell('monto').numFmt = '"S/ "#,##0.00';
-
-  const buffer = await workbook.xlsx.writeBuffer();
-  const filename = mes
-    ? `TransMedina_${mes.replace(' ', '_')}.xlsx`
-    : `TransMedina_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
-
-  return new NextResponse(buffer, {
+  return new NextResponse(buffer as unknown as BodyInit, {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="${filename}"`,
     },
   });
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const viajes: Viaje[] = body.viajes ?? [];
+    const filtros: FiltrosViaje = body.filtros ?? {};
+
+    const baseUrl = req.headers.get('origin') ?? process.env.NEXTAUTH_URL ?? '';
+    const buffer = await generarExcelViajes({
+      viajes,
+      filtros,
+      baseUrl,
+    });
+
+    const filename = generarNombreArchivo(filtros);
+
+    return new NextResponse(buffer as unknown as BodyInit, {
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Error al generar Excel';
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+function generarNombreArchivo(filtros: FiltrosViaje = {}): string {
+  if (filtros.fecha_desde && filtros.fecha_hasta) {
+    return `TransMedina_${filtros.fecha_desde}_al_${filtros.fecha_hasta}.xlsx`;
+  }
+  if (filtros.fecha_desde) {
+    return `TransMedina_desde_${filtros.fecha_desde}.xlsx`;
+  }
+  if (filtros.fecha_hasta) {
+    return `TransMedina_hasta_${filtros.fecha_hasta}.xlsx`;
+  }
+  if (filtros.mes) {
+    return `TransMedina_${filtros.mes.replace(/\s+/g, '_')}.xlsx`;
+  }
+  return `TransMedina_Viajes_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
 }
 
 function calcularResumen(viajes: Record<string, unknown>[]) {
