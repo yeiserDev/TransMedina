@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Viaje } from '@/types';
 
@@ -8,19 +8,16 @@ const DIAS = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá'];
 const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio',
   'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-function subscribeClock(callback: () => void) {
-  const id = setInterval(callback, 1000);
-  return () => clearInterval(id);
-}
-
 export default function ClockWidget() {
-  const now = useSyncExternalStore(
-    subscribeClock,
-    () => new Date(),
-    () => null
-  );
+  const [now, setNow] = useState<Date | null>(null);
   const [viewDate, setViewDate] = useState(() => new Date());
   const [viajes, setViajes] = useState<Viaje[]>([]);
+
+  useEffect(() => {
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     fetch('/api/viajes')
