@@ -6,10 +6,12 @@ import { toast } from 'sonner';
 import { formatDoc } from '@/lib/documentos';
 import IconoPdf from './IconoPdf';
 import DrivePreviewModal from './DrivePreviewModal';
+import cardStyles from './DocumentCards.module.css';
 
 type TipoArchivo = 'guias' | 'facturas';
 
 interface Props {
+  variant?: 'rows' | 'cards';
   viajeId: string;
   driveIdGuia: string | null;
   driveIdFactura: string | null;
@@ -27,7 +29,9 @@ function ArchivoCard({
   viajeId,
   tipo,
   onUploaded,
+  variant = 'rows',
 }: {
+  variant?: 'rows' | 'cards';
   label: string;
   numero?: string | null;
   driveId: string | null;
@@ -87,6 +91,26 @@ function ArchivoCard({
 
   // Sin archivo: la tarjeta entera es zona de carga (clic o arrastrar)
   const esZonaCarga = !tieneArchivo && !uploading && !done;
+
+  if (variant === 'cards') return <>
+    <article className={cardStyles.card} data-empty={!tieneArchivo} aria-busy={uploading}
+      onDragOver={e => { e.preventDefault(); if (!uploading) setDragging(true); }}
+      onDragLeave={() => setDragging(false)} onDrop={handleDrop} data-dragging={dragging}>
+      <input ref={inputRef} type="file" accept={ACEPTA} hidden onChange={handleInput} aria-label={`Subir ${label.toLowerCase()}`} />
+      <div className={cardStyles.top}><span className={cardStyles.icon}><IconoPdf size={22} /></span><span>{tieneArchivo ? 'Adjunto' : 'Sin archivo'}</span></div>
+      <h4>{label}</h4><p className={cardStyles.number}>{formatDoc(numero) || 'Sin número'}</p>
+      {uploading ? <p className={cardStyles.feedback} role="status"><Loader2 size={16} className="animate-spin" />Subiendo…</p>
+        : <button type="button" className={cardStyles.primary} onClick={() => tieneArchivo ? setPreview(true) : inputRef.current?.click()}>
+          {tieneArchivo ? <Eye size={16} /> : <Upload size={16} />}{tieneArchivo ? 'Ver documento' : 'Subir archivo'}
+        </button>}
+      {tieneArchivo && <div className={cardStyles.actions}>
+        <a href={`https://drive.google.com/file/d/${localDriveId}/view`} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${label.toLowerCase()} en Drive`}><ExternalLink size={14} />Drive</a>
+        <button type="button" disabled={uploading} onClick={() => inputRef.current?.click()} aria-label={`Reemplazar ${label.toLowerCase()}`}><RefreshCw size={14} />Cambiar</button>
+      </div>}
+      {done && <span className={cardStyles.feedback} role="status"><Check size={14} />Archivo guardado</span>}
+    </article>
+    {preview && localDriveId && <DrivePreviewModal driveId={localDriveId} label={label} onClose={() => setPreview(false)} />}
+  </>;
 
   return (
     <>
@@ -215,6 +239,7 @@ function ArchivoCard({
 }
 
 export default function ArchivosDrive({
+  variant = 'rows',
   viajeId,
   driveIdGuia,
   driveIdFactura,
@@ -225,8 +250,9 @@ export default function ArchivosDrive({
   return (
     // Una columna en móvil: a dos columnas cada tarjeta queda en ~145px y
     // los tres botones de acción no entran. Dos columnas desde sm.
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3" style={{ maxWidth: 680 }}>
+    <div className={variant === 'cards' ? cardStyles.grid : 'grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3'} style={{ maxWidth: 680 }}>
       <ArchivoCard
+        variant={variant}
         label="Guía"
         numero={numeroGuia}
         driveId={driveIdGuia}
@@ -235,6 +261,7 @@ export default function ArchivosDrive({
         onUploaded={onUploaded}
       />
       <ArchivoCard
+        variant={variant}
         label="Factura"
         numero={numeroFactura}
         driveId={driveIdFactura}

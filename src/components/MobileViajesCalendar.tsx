@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { addDays, addMonths, format, parseISO, startOfWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { ArrowDownCircle, ChevronLeft, ChevronRight, Truck, Wallet } from 'lucide-react';
+import { CircleDollarSign, ChevronLeft, ChevronRight, Check, TriangleAlert, Truck, Wallet } from 'lucide-react';
 import type { Viaje } from '@/types';
 import { agruparCalendario, fechaRegistro } from '@/lib/calendario-viajes';
 import { cadenaDe, nombreCadena } from '@/lib/cadenas';
@@ -12,6 +12,15 @@ import CadenaLabel from './CadenaLabel';
 import styles from './MobileViajesCalendar.module.css';
 
 const money = (monto: number) => `S/ ${Number(monto).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`;
+
+function pendientesViaje(viaje: Viaje): string[] {
+  return [
+    !viaje.drive_id_guia && 'guía adjunta',
+    !viaje.drive_id_factura && 'factura adjunta',
+    viaje.estado !== 'facturado' && 'facturación',
+    viaje.detraccion !== 'realizado' && 'detracción',
+  ].filter((value): value is string => Boolean(value));
+}
 
 export default function MobileViajesCalendar({ viajes, mes, onMonthChange, onOpen, loading }: {
   viajes: Viaje[]; mes: string; onMonthChange: (mes: string) => void; onOpen: (id: string) => void; loading: boolean;
@@ -62,11 +71,15 @@ export default function MobileViajesCalendar({ viajes, mes, onMonthChange, onOpe
           const key = format(date, 'yyyy-MM-dd');
           const outside = !key.startsWith(`${mes}-`);
           const items = datos.dias.get(key) ?? [];
+          const trips = items.filter(v => v.tipo === 'viaje');
+          const pending = [...new Set(trips.flatMap(pendientesViaje))];
+          const status = trips.length === 0 ? undefined : pending.length > 0 ? 'pendiente' : 'completo';
+          const statusLabel = status === 'pendiente' ? `Pendiente: ${pending.join(', ')}` : status === 'completo' ? 'Todos los viajes completos' : '';
           const groups = [...new Map(items.map(v => [`${v.tipo}-${cadenaDe(v)}`, v])).values()];
           const label = `${format(date, "EEEE d 'de' MMMM", { locale: es })}${items.length ? `: ${items.map(v => v.tipo === 'viaje' ? `Viaje ${nombreCadena(cadenaDe(v))}` : v.tipo === 'deposito' ? 'Depósito' : 'Saldo').join(', ')}` : ', sin movimientos'}`;
           return <button type="button" key={key} ref={el => { buttons.current[key] = el; }}
-            className={styles.day} disabled={outside} data-selected={!verSinFecha && key === selectedDay} data-today={key === today} data-outside={outside}
-            aria-label={label} aria-pressed={!verSinFecha && key === selectedDay} aria-current={key === today ? 'date' : undefined}
+            className={styles.day} disabled={outside} data-selected={!verSinFecha && key === selectedDay} data-today={key === today} data-outside={outside} data-deposito={items.some(v => v.tipo === 'deposito')} data-status={status}
+            aria-label={`${label}${statusLabel ? `. ${statusLabel}` : ''}`} title={statusLabel || undefined} aria-pressed={!verSinFecha && key === selectedDay} aria-current={key === today ? 'date' : undefined}
             onClick={() => chooseDay(key)} onKeyDown={event => {
               const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[event.key];
               if (step === undefined) return;
@@ -74,11 +87,12 @@ export default function MobileViajesCalendar({ viajes, mes, onMonthChange, onOpe
               buttons.current[format(addDays(date, step), 'yyyy-MM-dd')]?.focus();
             }}>
             <span className={styles.dayNumber}>{date.getDate()}</span>
+            {status && <span className={styles.dayStatus} aria-hidden="true">{status === 'pendiente' ? <TriangleAlert size={11} /> : <Check size={11} />}</span>}
             <span className={styles.markers} aria-hidden="true">
               {groups.slice(0, 2).map(v => {
                 const cadena = cadenaDe(v);
                 return <span key={`${v.tipo}-${cadena}`} className={styles.marker} data-deposito={v.tipo === 'deposito'}>
-                  {v.tipo === 'viaje' ? <Truck size={12} /> : v.tipo === 'deposito' ? <ArrowDownCircle size={12} /> : <Wallet size={12} />}
+                  {v.tipo === 'viaje' ? <Truck size={12} /> : v.tipo === 'deposito' ? <CircleDollarSign size={15} /> : <Wallet size={12} />}
                   {v.tipo === 'viaje' && cadena && <Image src={cadena === 'ripley' ? '/brands/ripley.ico' : '/brands/oechsle.svg'} alt="" width={cadena === 'ripley' ? 11 : 16} height={11} unoptimized />}
                 </span>;
               })}
@@ -87,13 +101,13 @@ export default function MobileViajesCalendar({ viajes, mes, onMonthChange, onOpe
           </button>;
         })}
       </div>}
-    <div className={styles.legend}><span><Truck size={12} /> Viaje</span><span><ArrowDownCircle size={12} /> Depósito</span><span>Toca una fecha para ver el detalle</span></div>
+    <div className={styles.legend}><span><Truck size={12} /> Viaje</span><span><CircleDollarSign size={14} /> Depósito</span><span className={styles.completeKey}><Check size={12} />Completo</span><span className={styles.pendingKey}><TriangleAlert size={12} />Faltantes</span><span>Toca una fecha para ver el detalle</span></div>
     {showAgenda && <div className={styles.agenda} aria-live="polite">
       <div className={styles.agendaHeading}><h2>{verSinFecha ? 'Registros sin fecha' : format(parseISO(selectedDay), "EEEE d 'de' MMMM", { locale: es })}</h2><span>{registros.length}</span></div>
       <div className={styles.agendaList}>
         {registros.length === 0 ? <p className={styles.empty}>No hay movimientos para esta fecha{viajes.length === 0 ? '. Revisa los filtros activos.' : '.'}</p>
           : registros.map(v => <button type="button" key={v.id} className={styles.agendaItem} onClick={() => onOpen(v.id)}>
-            <span className={styles.agendaIcon} data-deposito={v.tipo === 'deposito'}>{v.tipo === 'viaje' ? <Truck size={18} /> : v.tipo === 'deposito' ? <ArrowDownCircle size={18} /> : <Wallet size={18} />}</span>
+            <span className={styles.agendaIcon} data-deposito={v.tipo === 'deposito'}>{v.tipo === 'viaje' ? <Truck size={18} /> : v.tipo === 'deposito' ? <CircleDollarSign size={18} /> : <Wallet size={18} />}</span>
             <span className={styles.agendaInfo}><strong>{v.tipo === 'viaje' ? v.descripcion : v.tipo === 'deposito' ? 'Depósito recibido' : 'Saldo anterior'}</strong><CadenaLabel cadena={cadenaDe(v)} /></span>
             <span className={styles.amount}>{v.tipo === 'deposito' ? '+' : ''}{money(v.monto)}<ChevronRight size={14} /></span>
           </button>)}

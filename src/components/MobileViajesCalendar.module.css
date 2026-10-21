@@ -14,8 +14,17 @@
 .dayNumber { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .day[data-today='true'] .dayNumber { background: var(--ink); color: var(--white); }
 .day[data-selected='true'] { background: var(--canvas); outline: 1.5px solid var(--ink); outline-offset: -1.5px; }
+.day[data-deposito='true'] { background: #f0f8f2; outline: 1.5px solid #4b8b60; outline-offset: -1.5px; }
+.day[data-deposito='true'][data-selected='true'] { background: #e1f0e5; outline: 2px solid #166534; outline-offset: -2px; }
+.day[data-status='completo'] { background: #edf7ef; outline: 1px solid #bad9c1; outline-offset: -1px; }
+.day[data-status='completo'][data-selected='true'] { background: #e0f0e5; outline: 2px solid #347449; outline-offset: -2px; }
+.day[data-status='completo'][data-deposito='true'] { outline-color: #4b8b60; }
+.day[data-status='pendiente'] { background: #fff6e3; outline: 1px solid #ebd6a5; outline-offset: -1px; }
+.day[data-status='pendiente'][data-selected='true'] { background: #ffedc5; outline: 2px solid #9a670f; outline-offset: -2px; }
+.dayStatus { position: absolute; top: 5px; left: 3px; display: flex; color: #946008; }
+.day[data-status='completo'] .dayStatus { color: #28663c; }
 .markers { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.marker { display: flex; align-items: center; justify-content: center; gap: 2px; height: 13px; }
+.marker { display: flex; align-items: center; justify-content: center; gap: 2px; min-height: 15px; }
 .marker > svg { flex-shrink: 0; }
 .marker > img { object-fit: contain; }
 .marker[data-deposito='true'] { color: #166534; }
@@ -23,7 +32,9 @@
 .legend { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 10px 0; font-size: 10px; color: var(--slate); }
 .legend > span { display: inline-flex; align-items: center; gap: 3px; }
 .legend > span:nth-child(2) svg { color: #166534; }
-.legend > span:last-child { margin-left: auto; font-size: 9px; }
+.legend > .completeKey { color: #28663c; }
+.legend > .pendingKey { color: #946008; }
+.legend > span:last-child { flex-basis: 100%; margin-top: 2px; font-size: 9px; }
 .agenda { border-top: 1px solid var(--canvas); padding-top: 12px; }
 .agendaHeading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .agendaHeading h2 { font-size: 14px; font-weight: 600; text-transform: capitalize; }

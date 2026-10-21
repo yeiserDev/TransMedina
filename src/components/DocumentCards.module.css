@@ -1,0 +1,18 @@
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.card { min-width: 0; padding: 14px 12px 6px; border: 1px solid #dedbd7; border-radius: 16px; background: var(--white); }
+.card[data-empty='true'] { border-style: dashed; background: var(--canvas-lifted); }
+.card[data-dragging='true'] { border-color: var(--signal); background: #fff4ed; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 12px; }
+.top > span:last-child { font-size: 11px; color: var(--slate); }
+.icon { display: grid; place-items: center; width: 36px; height: 40px; border-radius: 10px; background: #fdefeb; }
+.card h4 { font-size: 16px; font-weight: 600; }
+.number { min-height: 24px; margin: 3px 0 10px; font-size: 12px; color: var(--slate); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.primary { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 44px; padding: 8px 4px; border-radius: 10px; background: var(--ink); color: white; font-size: 12px; cursor: pointer; }
+.card[data-empty='true'] .primary { background: var(--canvas); color: var(--ink); }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.actions :is(a, button) { display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; min-height: 44px; color: var(--slate); font-size: 11px; cursor: pointer; }
+.feedback { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; color: var(--slate); font-size: 12px; }
+.card :is(button, a):focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+.card button:disabled { opacity: .5; cursor: wait; }
+.card :is(button, a):active { opacity: .65; }
+@media (max-width: 350px) { .card { padding-inline: 9px; } .actions :is(a, button) { flex-direction: column; gap: 1px; } .primary { font-size: 11px; gap: 4px; } }
