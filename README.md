@@ -1,6 +1,22 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+## Cadenas de carga (FART)
+
+Antes de usar el selector Ripley/Oechsle, ejecutar `supabase/migrations/20261020_cadenas.sql` en el SQL Editor del proyecto Supabase. La aplicación necesita esta columna para guardar la cadena; las claves de API disponibles en `.env.local` no permiten modificar la estructura SQL.
+
+La migración conserva los importes y asigna el historial existente a Ripley, la operación anterior. Si el primer viaje de Oechsle ya estaba registrado, editarlo después para cambiar su cadena.
+
+FART sigue siendo la contraparte de cobro. Los viajes requieren Ripley u Oechsle. Los depósitos y saldos anteriores también admiten General FART: afectan la cuenta total una sola vez y no se reparten automáticamente entre cadenas. Si hay movimientos generales, el saldo de una cadena se muestra antes de esos abonos, con una aclaración. Para obtener su deuda exacta, asignar el depósito a la cadena que corresponda; un depósito que cubra ambas debe registrarse en dos importes cuya suma sea el depósito recibido.
+
+## PWA en iPhone
+
+Publicar por HTTPS. En el iPhone, abrir la URL en Safari → Compartir → Agregar a Inicio → activar Abrir como app web si aparece → Agregar. El acceso se llama TransMedina y usa el camión con la R de Ripley. En el menú lateral también hay instrucciones y una acción para actualizar la vista.
+
+`src/app/manifest.ts` configura la instalación y `src/app/layout.tsx` los metadatos de Apple y el viewport. Los iconos están en `public/pwa/`. El service worker (`public/sw.js`) solo se registra en producción y en un contexto seguro (HTTPS o localhost).
+
+Los viajes, sesiones, API, PDF y saldos no se guardan en la caché del service worker. Para consultarlos y hacer cambios se necesita conexión. Si falla una navegación sin internet, se muestra una pantalla estática para reintentar; la página abierta también indica la pérdida de conexión. Incrementar `transmedina-static-v1` al cambiar los recursos precargados.
+
+## Desarrollo
 
 First, run the development server:
 

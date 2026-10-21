@@ -1,7 +1,7 @@
 'use client';
 
 import { X, ExternalLink } from 'lucide-react';
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 
 interface Props {
@@ -23,28 +23,39 @@ export default function DrivePreviewModal({ driveId, label, onClose, secretToken
     () => true,
     () => false
   );
+  const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
+    if (!mounted) return;
+    const element = dialog.current;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    element?.showModal();
+    document.body.style.overflow = 'hidden';
+    return () => {
+      element?.close();
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus({ preventScroll: true });
+    };
+  }, [mounted]);
 
   if (!mounted) return null;
 
   // createPortal saca el modal del stacking context del aside/sticky
   // para que siempre quede por encima de todo el contenido de la página
   return createPortal(
-    <div
-      className="fixed inset-0 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)', zIndex: 9999 }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    <dialog ref={dialog} className="drive-preview-dialog" aria-label={label ?? 'Vista previa del documento'}
+      onCancel={event => { event.preventDefault(); onClose(); }}
+      onClick={event => { if (event.target === event.currentTarget) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();
+      } }}
     >
       <div
         className="relative flex flex-col rounded-2xl overflow-hidden"
         style={{
-          width: 'min(92vw, 880px)',
-          height: 'min(88vh, 920px)',
+          width: '100%',
+          height: '100%',
           background: '#fff',
           boxShadow: '0 24px 80px rgba(0,0,0,.3)',
         }}
@@ -62,7 +73,7 @@ export default function DrivePreviewModal({ driveId, label, onClose, secretToken
               href={`https://drive.google.com/file/d/${driveId}/view`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
               style={{ fontSize: 11, color: 'var(--link)', border: '1px solid rgba(20,20,19,.15)', textDecoration: 'none' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--canvas)'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = ''}
@@ -72,7 +83,9 @@ export default function DrivePreviewModal({ driveId, label, onClose, secretToken
             </a>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
+              aria-label="Cerrar documento"
+              autoFocus
+              className="w-11 h-11 rounded-full flex items-center justify-center transition-all focus-visible:outline-2 focus-visible:outline-offset-2"
               style={{ color: 'var(--slate)', border: '1px solid rgba(20,20,19,.12)' }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--canvas)'; (e.currentTarget as HTMLElement).style.color = 'var(--ink)'; }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; (e.currentTarget as HTMLElement).style.color = 'var(--slate)'; }}
@@ -89,7 +102,7 @@ export default function DrivePreviewModal({ driveId, label, onClose, secretToken
           title={label ?? 'Documento'}
         />
       </div>
-    </div>,
+    </dialog>,
     document.body
   );
 }

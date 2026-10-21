@@ -1,6 +1,8 @@
 -- Tabla principal de viajes
 CREATE TABLE IF NOT EXISTS viajes (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  tipo VARCHAR(20) NOT NULL DEFAULT 'viaje' CHECK (tipo IN ('viaje', 'saldo_anterior', 'deposito')),
+  cadena TEXT CHECK (cadena IS NULL OR cadena IN ('ripley', 'oechsle')),
   fecha_carga DATE NOT NULL,
   fecha_traslado DATE NOT NULL,
   mes VARCHAR(20) NOT NULL,
@@ -14,7 +16,8 @@ CREATE TABLE IF NOT EXISTS viajes (
   drive_id_guia VARCHAR(255),
   drive_id_factura VARCHAR(255),
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CHECK (tipo <> 'viaje' OR cadena IS NOT NULL)
 );
 
 -- Trigger para actualizar updated_at automáticamente
@@ -32,6 +35,7 @@ CREATE TRIGGER viajes_updated_at
 
 -- Índices para filtros frecuentes
 CREATE INDEX IF NOT EXISTS idx_viajes_mes ON viajes(mes);
+CREATE INDEX IF NOT EXISTS idx_viajes_cadena ON viajes(cadena);
 CREATE INDEX IF NOT EXISTS idx_viajes_estado ON viajes(estado);
 CREATE INDEX IF NOT EXISTS idx_viajes_detraccion ON viajes(detraccion);
 CREATE INDEX IF NOT EXISTS idx_viajes_fecha_traslado ON viajes(fecha_traslado);

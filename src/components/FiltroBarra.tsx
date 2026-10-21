@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { FiltrosViaje, EstadoViaje, EstadoDetraccion } from '@/types';
-import { X, Check, ChevronDown, Calendar, FileSpreadsheet } from 'lucide-react';
+import { X, Check, ChevronDown, FileSpreadsheet } from 'lucide-react';
+import DateRangePicker from './DateRangePicker';
 
 interface Props {
   filtros: FiltrosViaje;
@@ -84,7 +85,7 @@ function PillSelect({
         onClick={() => setAbierto(a => !a)}
         aria-haspopup="listbox"
         aria-expanded={abierto}
-        className="flex items-center gap-1.5 pl-4 pr-2.5 py-2 text-xs cursor-pointer outline-none transition-all duration-150"
+        className="filtro-select-trigger flex items-center gap-1.5 pl-4 pr-2.5 py-2 text-xs cursor-pointer outline-none transition-all duration-150"
         style={{
           borderRadius: 'var(--r-pill)',
           border: activo ? '1.5px solid var(--ink)' : '1px solid rgba(20,20,19,.18)',
@@ -177,6 +178,7 @@ export default function FiltroBarra({
   totalFiltrados,
 }: Props) {
   const hasFilters = Boolean(
+    filtros.cadena ||
     filtros.mes ||
     filtros.estado ||
     filtros.detraccion ||
@@ -184,15 +186,13 @@ export default function FiltroBarra({
     filtros.fecha_hasta
   );
 
-  const tieneFechas = Boolean(filtros.fecha_desde || filtros.fecha_hasta);
-
   const opcionesMes: Opcion[] = [
     { value: '', label: 'Todos los meses' },
     ...meses.map(m => ({ value: m, label: m.charAt(0).toUpperCase() + m.slice(1) })),
   ];
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="filtros-barra flex flex-wrap items-center gap-2">
       {/* Selector de Mes */}
       <PillSelect
         value={filtros.mes ?? ''}
@@ -201,71 +201,11 @@ export default function FiltroBarra({
         options={opcionesMes}
       />
 
-      {/* Rango de Fechas (Desde / Hasta) */}
-      <div
-        className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-xs transition-all duration-150"
-        style={{
-          borderRadius: 'var(--r-pill)',
-          border: tieneFechas ? '1.5px solid var(--ink)' : '1px solid rgba(20,20,19,.18)',
-          background: tieneFechas ? 'var(--canvas-lifted)' : 'var(--white)',
-          boxShadow: tieneFechas ? '0 1px 2px rgba(20,20,19,.06)' : 'none',
-        }}
-      >
-        <Calendar size={13} style={{ color: tieneFechas ? 'var(--signal)' : 'var(--slate)', flexShrink: 0 }} />
-        <span style={{ fontSize: 11, color: 'var(--slate)', fontWeight: 500 }}>Desde:</span>
-        <input
-          type="date"
-          value={filtros.fecha_desde ?? ''}
-          onChange={e => onChange({ ...filtros, fecha_desde: e.target.value || undefined })}
-          style={{
-            border: 'none',
-            background: 'transparent',
-            fontSize: 11.5,
-            fontFamily: 'inherit',
-            color: 'var(--ink)',
-            outline: 'none',
-            padding: 0,
-            cursor: 'pointer',
-          }}
-          title="Filtrar desde esta fecha"
-        />
-        <span style={{ fontSize: 11, color: 'var(--dust)', margin: '0 1px' }}>—</span>
-        <span style={{ fontSize: 11, color: 'var(--slate)', fontWeight: 500 }}>Hasta:</span>
-        <input
-          type="date"
-          value={filtros.fecha_hasta ?? ''}
-          onChange={e => onChange({ ...filtros, fecha_hasta: e.target.value || undefined })}
-          style={{
-            border: 'none',
-            background: 'transparent',
-            fontSize: 11.5,
-            fontFamily: 'inherit',
-            color: 'var(--ink)',
-            outline: 'none',
-            padding: 0,
-            cursor: 'pointer',
-          }}
-          title="Filtrar hasta esta fecha"
-        />
-        {tieneFechas && (
-          <button
-            type="button"
-            onClick={() => onChange({ ...filtros, fecha_desde: undefined, fecha_hasta: undefined })}
-            style={{
-              border: 'none',
-              background: 'transparent',
-              color: 'var(--slate)',
-              cursor: 'pointer',
-              padding: '2px',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-            title="Limpiar rango de fechas"
-          >
-            <X size={12} />
-          </button>
-        )}
-      </div>
+      <DateRangePicker
+        fecha_desde={filtros.fecha_desde}
+        fecha_hasta={filtros.fecha_hasta}
+        onChange={range => onChange({ ...filtros, fecha_desde: range.fecha_desde, fecha_hasta: range.fecha_hasta })}
+      />
 
       {/* Estado Factura */}
       <PillSelect

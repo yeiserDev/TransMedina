@@ -1,6 +1,53 @@
 @import "tailwindcss";
 @import "@fontsource-variable/sofia-sans";
 
+.drive-preview-dialog {
+  width: min(880px, calc(100vw - 24px));
+  height: min(920px, calc(100dvh - 32px));
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--white);
+}
+.drive-preview-dialog::backdrop { background: rgb(0 0 0 / 60%); }
+.drive-preview-dialog > div > div:first-child { gap: 8px; padding: 12px 16px; }
+.drive-preview-dialog > div > div:first-child > span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drive-preview-dialog :is(a, button) { min-height: 44px; }
+.viajes-actions > button { min-height: 40px; font-size: 13px; }
+@media (max-width: 1023px) {
+  .viajes-view[data-mobile-view='calendario'] { display: flex; flex-direction: column; gap: 12px; padding-bottom: 20px; }
+  .viajes-view[data-mobile-view='calendario'] > * { margin-block: 0; }
+  .viajes-view[data-mobile-view='calendario'] .viajes-actions { display: none; }
+  .viajes-view[data-mobile-view='calendario'] h1 { font-size: 28px; }
+  .mobile-view-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .mobile-view-toolbar > div { display: flex; gap: 2px; padding: 3px; background: var(--white); border-radius: var(--r-pill); }
+  .mobile-view-toolbar button { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; padding: 7px 10px; border-radius: var(--r-pill); font-size: 12px; cursor: pointer; }
+  .mobile-view-toolbar button[aria-pressed='true'] { background: var(--ink); color: var(--canvas); }
+  .mobile-view-toolbar > button { color: var(--slate); }
+  .mobile-view-toolbar button:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+}
+@media (max-width: 639px) {
+  .viajes-header > div:first-child { width: 100%; }
+  .viajes-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: 8px; }
+  .viajes-actions > button { justify-content: center; width: 100%; min-height: 44px; padding: 10px 8px; font-size: 12px; }
+  .viajes-actions > button:only-child { grid-column: 1 / -1; }
+  .viajes-mobile-list button { min-height: 44px; }
+  .viajes-view :is(.btn-ink, .btn-outline) { min-height: 44px; }
+  .filtros-barra { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+  .filtros-barra > div { min-width: 0; }
+  .filtros-barra > div:first-child, .filtros-barra > div:nth-child(2) { grid-column: 1 / -1; }
+  .filtros-barra > div:nth-child(2) { width: 100%; justify-content: center; min-height: 44px; }
+  .filtro-select-trigger { width: 100%; min-height: 44px; justify-content: space-between; }
+  .viajes-view :is(input, select, textarea) { font-size: 16px; }
+  .viajes-view .input-field { min-width: 0; max-width: 100%; }
+  .viajes-view form .grid > div { min-width: 0; }
+}
+@media (max-width: 380px) { .viajes-view form .grid { grid-template-columns: 1fr; } }
+
 /* ─── Mastercard-inspired Design System ─────────────────────────── */
 :root {
   /* Canvas */
@@ -43,6 +90,10 @@ html, body {
 }
 
 body {
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
   background: var(--canvas);
   color: var(--ink);
   font-family: 'Sofia Sans Variable', 'Sofia Sans', Arial, sans-serif;
@@ -50,6 +101,17 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+.app-navigation { top: env(safe-area-inset-top, 0px); }
+.pwa-install-help { font-size: 13px; }
+.pwa-install-help summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; list-style: none; }
+.pwa-install-help summary::-webkit-details-marker { display: none; }
+.pwa-install-help summary img { border-radius: 8px; }
+.pwa-install-help p { max-height: 140px; overflow-y: auto; margin: 8px 0 12px; color: var(--slate); font-size: 12px; line-height: 1.6; }
+.pwa-install-help p svg { display: inline; vertical-align: text-bottom; }
+.pwa-install-help summary:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+@media (display-mode: standalone) { .pwa-install-help { display: none; } }
+.pwa-network-status { position: fixed; left: 16px; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 45; width: fit-content; max-width: calc(100vw - 32px); margin: auto; padding: 12px 18px; border-radius: 20px; background: var(--ink); color: var(--canvas); font-size: 12px; line-height: 1.4; box-shadow: var(--shadow-card); }
 
 /* Eyebrow label — 14px / 700 / +4% tracking */
 .eyebrow {

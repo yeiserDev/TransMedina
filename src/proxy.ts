@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 
 // Rutas que cualquiera puede ver sin iniciar sesión
-const PUBLIC_PATHS = ['/', '/reportes', '/login', '/secretaria', '/reporte-cliente'];
+const PUBLIC_PATHS = ['/', '/reportes', '/login', '/secretaria', '/reporte-cliente', '/brands', '/pwa', '/manifest.webmanifest', '/sw.js'];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;

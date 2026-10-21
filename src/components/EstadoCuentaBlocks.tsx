@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, TrendingUp, ArrowDownCircle } from 'lucide-react';
 import { Viaje } from '@/types';
 import { formatDoc } from '@/lib/documentos';
+import CadenaLabel from './CadenaLabel';
+import { cadenaDe, nombreCadena } from '@/lib/cadenas';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -252,7 +254,7 @@ export default function EstadoCuentaBlocks({ viajes }: Props) {
                             Depósito recibido — {fmtDate(v.fecha_traslado)}
                           </span>
                           <span className="text-xs" style={{ color: 'var(--slate)', fontWeight: 450 }}>
-                            {v.descripcion || ''}
+                            {nombreCadena(cadenaDe(v))} · {v.descripcion || ''}
                           </span>
                           <span className="ml-auto flex items-center gap-4 text-xs shrink-0">
                             <span style={{ color: 'var(--slate)' }}>
@@ -294,7 +296,7 @@ export default function EstadoCuentaBlocks({ viajes }: Props) {
                       <div key={v.id} className="px-3.5 sm:px-5 py-2.5 flex items-center justify-between"
                         style={{ background: '#FFFBEB', borderBottom: rIdx < block.rows.length - 1 ? '1px solid rgba(20,20,19,.06)' : 'none' }}>
                         <span className="text-xs" style={{ color: '#92400E', fontWeight: 500 }}>
-                          Saldo anterior registrado
+                          Saldo anterior registrado · {nombreCadena(cadenaDe(v))}
                         </span>
                         <span className="text-xs" style={{ fontWeight: 700, color: '#92400E' }}>
                           + {fmtMoney(row.cargo)}
@@ -316,7 +318,7 @@ export default function EstadoCuentaBlocks({ viajes }: Props) {
                         style={{ gridTemplateColumns: GRID_COLS, gap: '8px' }}>
                         <span className="text-xs" style={{ color: 'var(--slate)' }}>{fmtDate(v.fecha_carga)}</span>
                         <span className="text-xs" style={{ color: 'var(--slate)' }}>{fmtDate(v.fecha_traslado)}</span>
-                        <span className="text-xs truncate" style={{ color: 'var(--ink)', fontWeight: 450 }}>{v.descripcion}</span>
+                        <div className="min-w-0"><span className="text-xs block truncate" style={{ color: 'var(--ink)', fontWeight: 450 }}>{v.descripcion}</span><CadenaLabel cadena={cadenaDe(v)} /></div>
                         <span className="text-xs" style={{ color: 'var(--slate)', whiteSpace: 'nowrap' }}>{formatDoc(v.numero_guia) || '—'}</span>
                         <span>
                           {v.estado === 'facturado'
@@ -341,6 +343,7 @@ export default function EstadoCuentaBlocks({ viajes }: Props) {
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
                             <p className="text-sm truncate" style={{ fontWeight: 500, color: 'var(--ink)' }}>{v.descripcion}</p>
+                            <CadenaLabel cadena={cadenaDe(v)} />
                             <p className="text-xs mt-0.5" style={{ color: 'var(--slate)' }}>
                               {fmtDate(v.fecha_traslado)}
                               {v.numero_guia ? ` · ${formatDoc(v.numero_guia)}` : ''}

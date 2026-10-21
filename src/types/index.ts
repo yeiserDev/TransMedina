@@ -1,10 +1,13 @@
 export type EstadoViaje = 'pendiente' | 'facturado';
 export type EstadoDetraccion = 'pendiente' | 'realizado';
 export type TipoRegistro = 'viaje' | 'saldo_anterior' | 'deposito';
+export type Cadena = 'ripley' | 'oechsle';
+export type FiltroCadena = Cadena | 'general';
 
 export interface Viaje {
   id: string;
   tipo: TipoRegistro;
+  cadena: Cadena | null;
   fecha_carga: string;
   fecha_traslado: string;
   mes: string;
@@ -24,6 +27,7 @@ export type ViajeInsert = Omit<Viaje, 'id' | 'created_at' | 'updated_at'>;
 export type ViajeUpdate = Partial<ViajeInsert>;
 
 export interface FiltrosViaje {
+  cadena?: FiltroCadena;
   mes?: string;
   estado?: EstadoViaje;
   detraccion?: EstadoDetraccion;

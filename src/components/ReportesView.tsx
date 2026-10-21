@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { FileSpreadsheet, ChevronDown } from 'lucide-react';
-import { Viaje } from '@/types';
+import { Viaje, FiltroCadena } from '@/types';
+import { cadenaDe, coincideCadena } from '@/lib/cadenas';
+import CadenaSwitch from './CadenaSwitch';
+import CuentaFart from './CuentaFart';
 import { toast } from 'sonner';
 import EstadoCuentaBlocks from './EstadoCuentaBlocks';
 
@@ -17,6 +20,8 @@ export default function ReportesView({ initialViajes }: { initialViajes?: Viaje[
   const [transactions, setTransactions] = useState<Viaje[]>(initialViajes ?? []);
   const [loading, setLoading] = useState(!initialViajes);
   const [descargando, setDescargando] = useState(false);
+  const [cadena, setCadena] = useState<FiltroCadena>();
+  const visibles = useMemo(() => transactions.filter(v => coincideCadena(v, cadena)), [transactions, cadena]);
 
   useEffect(() => {
     if (initialViajes) return;
@@ -29,25 +34,28 @@ export default function ReportesView({ initialViajes }: { initialViajes?: Viaje[
 
   const kpis = useMemo(() => {
     let running = 0;
-    const sorted = [...transactions].sort(
+    const sorted = [...visibles].sort(
       (a, b) => claveFecha(a.fecha_traslado).localeCompare(claveFecha(b.fecha_traslado))
     );
     for (const v of sorted) {
       if (v.tipo === 'deposito') running -= Number(v.monto);
       else running += Number(v.monto);
     }
-    const viajes = transactions.filter(v => v.tipo === 'viaje');
+    const viajes = visibles.filter(v => v.tipo === 'viaje');
     return {
       detPendientes: viajes.filter(v => v.detraccion === 'pendiente').length,
       saldoActual: running,
     };
-  }, [transactions]);
+  }, [visibles]);
 
   const descargar = async () => {
     setDescargando(true);
     let url: string | null = null;
     try {
-      const res = await fetch('/api/reportes');
+      const res = await fetch('/api/reportes', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ viajes: visibles, filtros: { cadena } }),
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         throw new Error(body.error ?? `HTTP ${res.status}`);
@@ -94,6 +102,9 @@ export default function ReportesView({ initialViajes }: { initialViajes?: Viaje[
         </button>
       </div>
 
+      <CadenaSwitch value={cadena} onChange={setCadena} conGeneral={transactions.some(v => cadenaDe(v) === null)} />
+      {!loading && <CuentaFart viajes={transactions} cadena={cadena} />}
+
       {/* KPIs */}
       {!loading && transactions.length > 0 && (
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
@@ -104,8 +115,8 @@ export default function ReportesView({ initialViajes }: { initialViajes?: Viaje[
               warning: kpis.detPendientes > 0,
             },
             {
-              eyebrow: 'Saldo actual', value: kpis.saldoActual <= 0 ? '✓ Al día' : fmtMoney(kpis.saldoActual),
-              sub: kpis.saldoActual <= 0 ? 'sin deuda' : 'por cobrar',
+              eyebrow: cadena ? 'Saldo asignado' : 'Saldo actual', value: fmtMoney(kpis.saldoActual),
+              sub: cadena ? 'según los pagos asignados a esta cuenta' : kpis.saldoActual <= 0 ? 'saldo a favor o cancelado' : 'por cobrar',
               ok: kpis.saldoActual <= 0,
             },
           ].map(({ eyebrow, value, sub, warning, ok }) => (
@@ -140,7 +151,7 @@ export default function ReportesView({ initialViajes }: { initialViajes?: Viaje[
             <div key={i} className="skeleton rounded-3xl" style={{ height: 64 }} />
           ))}
         </div>
-      ) : transactions.length === 0 ? (
+      ) : visibles.length === 0 ? (
         <div className="flex flex-col items-center py-24 gap-4">
           <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'var(--canvas)' }}>
             <FileSpreadsheet size={24} style={{ color: 'var(--slate)' }} />
@@ -153,7 +164,7 @@ export default function ReportesView({ initialViajes }: { initialViajes?: Viaje[
             <p className="eyebrow">Estado de cuenta</p>
             <ChevronDown size={12} style={{ color: 'var(--slate)' }} />
           </div>
-          <EstadoCuentaBlocks viajes={transactions} />
+          <EstadoCuentaBlocks viajes={visibles} />
         </>
       )}
 

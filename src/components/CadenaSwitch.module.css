@@ -1,0 +1,8 @@
+.switch { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: var(--r-btn); background: var(--canvas); }
+.switch button { min-height: 36px; padding: 8px 16px; border-radius: var(--r-pill); color: var(--slate); font-size: 13px; font-weight: 500; cursor: pointer; transition: background .15s, color .15s; }
+.switch button:hover { background: var(--white); color: var(--ink); }
+.switch button[aria-pressed='true'] { background: var(--ink); color: var(--canvas); }
+.switch button:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+@media (pointer: coarse) { .switch button { min-height: 44px; } }
+@media (max-width: 380px) { .switch button { padding-inline: 12px; } }
+@media (max-width: 639px) { .switch { width: 100%; flex-wrap: nowrap; gap: 0; overflow-x: auto; } .switch button { flex-shrink: 0; padding-inline: 10px; font-size: 12px; } }

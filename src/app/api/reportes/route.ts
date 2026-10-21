@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { generarExcelViajes } from '@/lib/excel-export';
 import { FiltrosViaje, Viaje } from '@/types';
+import { esCadena } from '@/lib/cadenas';
 import { format } from 'date-fns';
 
 export async function GET(req: NextRequest) {
@@ -12,11 +13,17 @@ export async function GET(req: NextRequest) {
   const detraccion = searchParams.get('detraccion') as FiltrosViaje['detraccion'];
   const fechaDesde = searchParams.get('fecha_desde');
   const fechaHasta = searchParams.get('fecha_hasta');
+  const cadena = searchParams.get('cadena');
+  if (cadena && cadena !== 'general' && !esCadena(cadena)) {
+    return NextResponse.json({ error: 'Cadena no válida.' }, { status: 400 });
+  }
 
   const supabase = await createAdminClient();
   let query = supabase.from('viajes').select('*').order('fecha_traslado', { ascending: true });
 
   if (mes) query = query.eq('mes', mes);
+  if (cadena === 'general') query = query.is('cadena', null);
+  else if (cadena) query = query.eq('cadena', cadena);
   if (estado) query = query.eq('estado', estado);
   if (detraccion) query = query.eq('detraccion', detraccion);
   if (fechaDesde) query = query.gte('fecha_traslado', fechaDesde);
@@ -34,6 +41,7 @@ export async function GET(req: NextRequest) {
   const buffer = await generarExcelViajes({
     viajes: (viajes ?? []) as Viaje[],
     filtros: {
+      cadena: (cadena as FiltrosViaje['cadena']) ?? undefined,
       mes: mes ?? undefined,
       estado: estado ?? undefined,
       detraccion: detraccion ?? undefined,

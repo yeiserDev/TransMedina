@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { Viaje, FiltrosViaje } from '@/types';
 import { formatDoc } from '@/lib/documentos';
+import { cadenaDe, coincideCadena, nombreCadena } from '@/lib/cadenas';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -32,6 +33,7 @@ export async function generarExcelViajes({
   filtros?: FiltrosViaje;
   baseUrl?: string;
 }): Promise<Buffer> {
+  viajes = viajes.filter(v => coincideCadena(v, filtros.cadena));
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'TransMedina';
   workbook.lastModifiedBy = 'TransMedina ERP';
@@ -97,6 +99,7 @@ export async function generarExcelViajes({
     { key: 'monto', width: 16 },            // J: Monto (S/)
     { key: 'saldo', width: 16 },            // K: Saldo Acum. (S/)
     { key: 'docs', width: 20 },             // L: Comprobantes
+    { key: 'cadena', width: 18 },           // M: Cadena de la carga
   ];
 
   // ─── Fila 1-2: Banner Corporativo ───────────────────────────────────
@@ -108,7 +111,7 @@ export async function generarExcelViajes({
   titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: C_INK } };
   titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
 
-  sheet.mergeCells('F1:L1');
+  sheet.mergeCells('F1:M1');
   const dateCell = sheet.getCell('F1');
   dateCell.value = `Exportado: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: es })}`;
   dateCell.font = { name: 'Arial', size: 9.5, color: { argb: C_SLATE } };
@@ -117,10 +120,11 @@ export async function generarExcelViajes({
   // Subtítulo con filtros
   const row2 = sheet.getRow(2);
   row2.height = 18;
-  sheet.mergeCells('A2:L2');
+  sheet.mergeCells('A2:M2');
   const filterDescCell = sheet.getCell('A2');
 
   const partesFiltro: string[] = [];
+  if (filtros.cadena) partesFiltro.push(`FART / ${filtros.cadena === 'general' ? 'General FART' : nombreCadena(filtros.cadena)} (solo abonos de esta cuenta)`);
   if (filtros.fecha_desde && filtros.fecha_hasta) {
     partesFiltro.push(`Rango: ${fmtDate(filtros.fecha_desde)} al ${fmtDate(filtros.fecha_hasta)}`);
   } else if (filtros.fecha_desde) {
@@ -172,7 +176,7 @@ export async function generarExcelViajes({
     { colStart: 1, colEnd: 2, titulo: 'REGISTROS', valor: viajes.length, color: C_INK, bg: C_CANVAS },
     { colStart: 3, colEnd: 4, titulo: 'TOTAL FLETES', valor: totalFletes, isMoney: true, color: C_INK, bg: C_CANVAS },
     { colStart: 5, colEnd: 6, titulo: 'DEPÓSITOS RECIBIDOS', valor: totalDepositos, isMoney: true, color: C_GREEN_DARK, bg: C_GREEN_BG },
-    { colStart: 7, colEnd: 8, titulo: 'SALDO POR COBRAR', valor: balancePorCobrar, isMoney: true, color: balancePorCobrar > 0 ? C_AMBER_DARK : C_GREEN_DARK, bg: balancePorCobrar > 0 ? C_AMBER_BG : C_GREEN_BG },
+    { colStart: 7, colEnd: 8, titulo: filtros.cadena ? 'SALDO ASIGNADO' : 'SALDO POR COBRAR', valor: balancePorCobrar, isMoney: true, color: balancePorCobrar > 0 ? C_AMBER_DARK : C_GREEN_DARK, bg: balancePorCobrar > 0 ? C_AMBER_BG : C_GREEN_BG },
     { colStart: 9, colEnd: 10, titulo: 'DETRACCIONES PEND.', valor: `${detPendientesList.length} (S/ ${importeDetPendiente.toFixed(2)})`, color: C_SIGNAL, bg: C_SIGNAL_BG },
     { colStart: 11, colEnd: 12, titulo: 'SIN FACTURAR', valor: `${factPendientes} viajes`, color: factPendientes > 0 ? C_AMBER_DARK : C_GREEN_DARK, bg: factPendientes > 0 ? C_AMBER_BG : C_GREEN_BG },
   ];
@@ -217,6 +221,7 @@ export async function generarExcelViajes({
     'MONTO (S/)',
     'SALDO ACUM. (S/)',
     'COMPROBANTES',
+    'CADENA / CUENTA FART',
   ];
 
   const headerRow = sheet.getRow(7);
@@ -275,6 +280,7 @@ export async function generarExcelViajes({
     if (isDeposito) rowBg = C_GREEN_BG;
 
     const row = sheet.addRow({
+      cadena: nombreCadena(cadenaDe(v)),
       fecha_carga: isDeposito || isSaldo ? '—' : fmtDate(v.fecha_carga),
       fecha_traslado: isSaldo ? '—' : fmtDate(v.fecha_traslado),
       mes: v.mes || '—',
@@ -299,7 +305,7 @@ export async function generarExcelViajes({
     row.height = 20;
 
     // Aplicar estilos a cada celda de la fila
-    for (let colIdx = 1; colIdx <= 12; colIdx++) {
+    for (let colIdx = 1; colIdx <= 13; colIdx++) {
       const cell = row.getCell(colIdx);
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
       cell.border = borderAll;
@@ -377,7 +383,7 @@ export async function generarExcelViajes({
   totalLabelCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C_INK } };
   totalLabelCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
 
-  for (let c = 6; c <= 12; c++) {
+  for (let c = 6; c <= 13; c++) {
     const cell = totalRow.getCell(c);
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C_INK } };
     cell.font = { name: 'Arial', size: 9.5, bold: true, color: { argb: C_WHITE } };

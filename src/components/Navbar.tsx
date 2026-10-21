@@ -3,25 +3,28 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signIn, signOut, useSession } from 'next-auth/react';
-import { Truck, LogOut, Menu, X, Lock } from 'lucide-react';
-import { useState } from 'react';
+import { Truck, LogOut, Menu, Lock } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import type { Viaje } from '@/types';
+import MobileSidebar from './MobileSidebar';
 
 const navLinks = [
   { href: '/',         label: 'Viajes'   },
   { href: '/reportes', label: 'Reportes' },
 ];
 
-export default function Navbar() {
+export default function Navbar({ initialViajes, canManage = false }: { initialViajes?: Viaje[]; canManage?: boolean }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   return (
     /* Floating pill — 24px below viewport top, never flush */
-    <div className="sticky top-0 z-40 pointer-events-none">
-      <div className="max-w-5xl mx-auto px-6 pt-4">
+    <div className="app-navigation sticky top-0 z-40 pointer-events-none">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-3 sm:pt-4">
         <nav
-          className="pointer-events-auto flex items-center justify-between px-6 h-14"
+          className="pointer-events-auto flex items-center justify-between px-4 sm:px-6 h-14"
           style={{
             background: 'var(--white)',
             borderRadius: 'var(--r-pill)',
@@ -37,13 +40,13 @@ export default function Navbar() {
             >
               <Truck size={14} style={{ color: 'var(--canvas)' }} />
             </div>
-            <span className="text-sm font-semibold tracking-tight hidden sm:block" style={{ color: 'var(--ink)', letterSpacing: '-0.02em' }}>
+            <span className="text-sm font-semibold tracking-tight" style={{ color: 'var(--ink)', letterSpacing: '-0.02em' }}>
               TransMedina
             </span>
           </Link>
 
           {/* Desktop links — centered */}
-          <div className="hidden sm:flex items-center gap-1">
+          <div className="hidden lg:flex items-center gap-1">
             {navLinks.map(({ href, label }) => {
               const active = pathname === href;
               return (
@@ -66,7 +69,7 @@ export default function Navbar() {
           </div>
 
           {/* Right — admin indicator or login */}
-          <div className="hidden sm:flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-3">
             {session ? (
               <>
                 {session.user?.image && (
@@ -105,64 +108,18 @@ export default function Navbar() {
 
           {/* Mobile hamburger */}
           <button
-            className="sm:hidden w-9 h-9 flex items-center justify-center rounded-full transition-colors"
+            className="lg:hidden h-11 px-3 flex items-center justify-center gap-2 rounded-full transition-colors"
             style={{ color: 'var(--ink)' }}
-            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Abrir menú y herramientas"
+            aria-haspopup="dialog"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(true)}
           >
-            {menuOpen ? <X size={18} /> : <Menu size={18} />}
+            <Menu size={18} /><span className="text-xs">Menú</span>
           </button>
         </nav>
 
-        {/* Mobile dropdown — also pill-shaped */}
-        {menuOpen && (
-          <div
-            className="sm:hidden mt-2 px-4 py-3 space-y-1 anim-scale-in pointer-events-auto"
-            style={{
-              background: 'var(--white)',
-              borderRadius: 'var(--r-hero)',
-              boxShadow: 'var(--shadow-card)',
-              border: '1px solid rgba(20,20,19,.06)',
-            }}
-          >
-            {navLinks.map(({ href, label }) => (
-              <Link
-                key={href}
-                href={href}
-                onClick={() => setMenuOpen(false)}
-                className="flex items-center px-4 py-3 text-sm transition-colors"
-                style={{
-                  borderRadius: 'var(--r-btn)',
-                  fontWeight: pathname === href ? 500 : 450,
-                  background: pathname === href ? 'var(--ink)' : 'transparent',
-                  color: pathname === href ? 'var(--canvas)' : 'var(--ink)',
-                  letterSpacing: '-0.02em',
-                }}
-              >
-                {label}
-              </Link>
-            ))}
-            <div style={{ height: '1px', background: 'rgba(20,20,19,.08)', margin: '4px 0' }} />
-            {session ? (
-              <button
-                onClick={() => signOut({ callbackUrl: '/' })}
-                className="flex items-center gap-2 px-4 py-3 text-sm w-full"
-                style={{ borderRadius: 'var(--r-btn)', color: 'var(--signal)', fontWeight: 450 }}
-              >
-                <LogOut size={14} />
-                Cerrar sesión
-              </button>
-            ) : (
-              <button
-                onClick={() => signIn('google', { callbackUrl: '/' })}
-                className="flex items-center gap-2 px-4 py-3 text-sm w-full"
-                style={{ borderRadius: 'var(--r-btn)', color: 'var(--slate)', fontWeight: 450 }}
-              >
-                <Lock size={14} />
-                Acceso administrador
-              </button>
-            )}
-          </div>
-        )}
+        {menuOpen && <MobileSidebar initialViajes={initialViajes} canManage={canManage} onClose={closeMenu} />}
       </div>
     </div>
   );

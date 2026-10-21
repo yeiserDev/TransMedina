@@ -14,7 +14,7 @@ export default async function ReportesPage() {
 
   return (
     <>
-      <Navbar />
+      <Navbar initialViajes={initialViajes} />
       <main className="max-w-5xl mx-auto px-3 sm:px-6 pt-5 sm:pt-8">
         <ReportesView initialViajes={initialViajes} />
       </main>

@@ -1,0 +1,31 @@
+.trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; padding: 10px 16px; background: var(--canvas); border: 1.5px solid rgb(20 20 19 / 14%); border-radius: var(--r-btn); color: var(--ink); text-align: left; font-size: 14px; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+.trigger[data-empty='true'] { color: var(--slate); }
+.trigger svg { flex-shrink: 0; color: var(--slate); }
+.trigger:hover { border-color: var(--slate); background: var(--canvas-lifted); }
+.trigger[aria-expanded='true'] { border-color: var(--ink); }
+.panel { position: fixed; z-index: 110; width: 328px; max-width: calc(100vw - 24px); overflow-y: auto; overscroll-behavior: contain; padding: 16px; border-radius: 20px; background: var(--white); color: var(--ink); box-shadow: 0 16px 64px rgb(20 20 19 / 24%); animation: calendar-in .18s cubic-bezier(.16,1,.3,1); }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 12px; margin-bottom: 8px; border-bottom: 1px solid var(--canvas); font-size: 13px; font-weight: 600; }
+.heading button, .nav > button { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; cursor: pointer; color: var(--slate); }
+.heading button:hover, .nav button:hover { background: var(--canvas); color: var(--ink); }
+.nav { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 8px; }
+.nav > div { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
+.nav > div button { padding: 8px; border-radius: 8px; text-transform: capitalize; font-size: 14px; font-weight: 600; cursor: pointer; }
+.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.weekday { display: grid; place-items: center; height: 32px; font-size: 11px; font-weight: 550; color: var(--slate); }
+.day { display: grid; place-items: center; width: 100%; aspect-ratio: 1; max-height: 44px; border-radius: 50%; color: var(--ink); font-size: 13px; font-variant-numeric: tabular-nums; cursor: pointer; transition: color .15s ease, background .15s ease; }
+.day[data-outside='true'] { color: var(--slate); }
+.day:hover { background: var(--canvas); }
+.day[aria-current='date'] { box-shadow: inset 0 0 0 1px var(--signal); }
+.day[data-selected='true'] { color: var(--white); background: var(--ink); font-weight: 650; }
+.choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 8px 0; }
+.choices button { min-height: 48px; padding: 8px; border-radius: 12px; background: var(--canvas-lifted); text-transform: capitalize; font-size: 13px; cursor: pointer; }
+.choices button:hover { background: var(--canvas); }
+.footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--canvas); }
+.footer button { min-height: 36px; padding: 8px 12px; font-size: 12px; border-radius: var(--r-pill); cursor: pointer; }
+.footer button:first-child { color: var(--slate); }
+.footer button:last-child { color: var(--white); background: var(--ink); }
+.footer button:disabled { opacity: .45; cursor: not-allowed; }
+.panel button:focus-visible, .trigger:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+@keyframes calendar-in { from { opacity: .4; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 480px) { .panel { padding: 12px; } .heading button, .nav > button { width: 40px; height: 40px; } .trigger { min-height: 48px; font-size: 16px; padding: 10px 12px; } }
+@media (prefers-reduced-motion: reduce) { .panel { animation: none; } .trigger, .day { transition: none; } }

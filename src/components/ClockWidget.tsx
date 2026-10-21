@@ -14,9 +14,9 @@ export default function ClockWidget() {
   const [viajes, setViajes] = useState<Viaje[]>([]);
 
   useEffect(() => {
-    setNow(new Date());
+    const frame = requestAnimationFrame(() => setNow(new Date()));
     const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
+    return () => { cancelAnimationFrame(frame); clearInterval(id); };
   }, []);
 
   useEffect(() => {
@@ -112,6 +112,7 @@ export default function ClockWidget() {
         <div className="flex items-center justify-between mb-4 px-0.5">
           <button
             onClick={() => setViewDate(new Date(year, month - 1, 1))}
+            aria-label="Mes anterior"
             className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
             style={{ color: 'var(--slate)' }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--canvas)'}
@@ -124,6 +125,7 @@ export default function ClockWidget() {
           </p>
           <button
             onClick={() => setViewDate(new Date(year, month + 1, 1))}
+            aria-label="Mes siguiente"
             className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
             style={{ color: 'var(--slate)' }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--canvas)'}
@@ -161,6 +163,7 @@ export default function ClockWidget() {
             return (
               <button
                 key={i}
+                aria-label={`${day} de ${MESES_ES[month]} de ${year}${hasViaje ? `, ${count} viajes. Ver viajes de este día` : ''}`}
                 onClick={() => handleDayClick(day)}
                 disabled={!hasViaje}
                 className="flex flex-col items-center justify-center transition-all duration-100"

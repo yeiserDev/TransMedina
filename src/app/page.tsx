@@ -22,9 +22,9 @@ export default async function HomePage() {
 
   return (
     <>
-      <Navbar />
-      <main className="max-w-screen-2xl mx-auto px-4 sm:px-0 pt-8">
-        <div className="lg:grid lg:grid-cols-[165px_1fr_200px] lg:gap-4 lg:items-start">
+      <Navbar initialViajes={initialViajes} canManage={isAdmin} />
+      <main className="max-w-screen-2xl mx-auto px-4 sm:px-0 pt-4 lg:pt-8">
+        <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)_200px] xl:grid-cols-[240px_minmax(0,1fr)_200px] lg:gap-4 lg:items-start">
 
           {/* Panel izquierdo — Finanzas */}
           <aside className="hidden lg:block lg:sticky lg:top-24">

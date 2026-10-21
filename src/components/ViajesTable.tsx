@@ -1,16 +1,24 @@
 'use client';
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Paperclip, ArrowDownCircle, ArrowRight, Clock, ClipboardList, Copy, Check, X, Eye, FileSpreadsheet } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Paperclip, ArrowDownCircle, ArrowRight, Clock, ClipboardList, Copy, Check, X, Eye } from 'lucide-react';
 import { Viaje, ViajeInsert, FiltrosViaje, EstadoDetraccion, TipoRegistro } from '@/types';
 import { formatDoc } from '@/lib/documentos';
+import CadenaLabel from './CadenaLabel';
+import { cadenaDe, coincideCadena } from '@/lib/cadenas';
+import CadenaSwitch from './CadenaSwitch';
 import { BadgeEstado, ToggleDetraccion } from './BadgeEstado';
 import FiltroBarra from './FiltroBarra';
+import ExportExcelButton from './ExportExcelButton';
 import ViajeForm from './ViajeForm';
 import ConfirmDialog from './ConfirmDialog';
 import ArchivosDrive from './ArchivosDrive';
 import DrivePreviewModal from './DrivePreviewModal';
-import { format } from 'date-fns';
+import MobileViajesCalendar from './MobileViajesCalendar';
+import MobileViajeDetail from './MobileViajeDetail';
+import { mesInicial } from '@/lib/calendario-viajes';
+import { CalendarDays, List, SlidersHorizontal } from 'lucide-react';
+import { format, isValid, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
 
@@ -100,7 +108,7 @@ function BotonVerDoc({ title, onClick }: { title: string; onClick: () => void })
 function formatFactura(v: Viaje): string {
   const esPuc = v.descripcion?.toLowerCase().includes('pucallpa');
   const destino = esPuc ? 'Pucallpa' : 'Huancayo';
-  const monto = esPuc ? 2000 : 1000;
+  const monto = Number(v.monto);
   const guia = v.numero_guia ?? '—';
   const fecha = v.fecha_traslado && !v.fecha_traslado.startsWith('1900')
     ? format(new Date(v.fecha_traslado + 'T12:00:00'), 'dd/MM/yyyy')
@@ -129,6 +137,10 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
   const [loading, setLoading] = useState(!initialViajes);
   const [exportando, setExportando] = useState(false);
   const [filtros, setFiltros] = useState<FiltrosViaje>({});
+  const [mobileView, setMobileView] = useState<'calendario' | 'lista'>('calendario');
+  const [mobileFilters, setMobileFilters] = useState(false);
+  const [mobileMonth, setMobileMonth] = useState(() => mesInicial(initialViajes ?? []));
+  const [mobileRecordId, setMobileRecordId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [newTipo, setNewTipo] = useState<TipoRegistro>('viaje');
   const [editViaje, setEditViaje] = useState<Viaje | undefined>();
@@ -186,6 +198,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
   // Filtrado instantáneo en memoria por mes, estado, detracción y fechas
   const viajes = useMemo(() => {
     return allViajes.filter(v => {
+      if (!coincideCadena(v, filtros.cadena)) return false;
       if (filtros.mes && v.mes !== filtros.mes) return false;
       if (filtros.estado && v.estado !== filtros.estado) return false;
       if (filtros.detraccion && v.detraccion !== filtros.detraccion) return false;
@@ -260,6 +273,8 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
   useEffect(() => {
     const handler = (e: Event) => {
       const date = (e as CustomEvent<string>).detail;
+      setFiltros({ fecha_desde: date, fecha_hasta: date });
+      setMobileMonth(date.slice(0, 7));
       const viajeYear = date.slice(0, 4);
       // ensure the year group is open
       setOpenYears(prev => {
@@ -284,6 +299,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
 
   const meses = useMemo(() => Array.from(new Set(allViajes.map((v) => v.mes).filter(Boolean))), [allViajes]);
   const hasFilters = Boolean(
+    filtros.cadena ||
     filtros.mes ||
     filtros.estado ||
     filtros.detraccion ||
@@ -468,6 +484,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
             {(isDeposito || isSaldo) ? (
               <td colSpan={5} className="px-3 py-2.5" style={{ overflow: 'hidden' }}>
                 <div className="flex items-center gap-2 min-w-0">
+                  <CadenaLabel cadena={cadenaDe(v)} />
                   {isDeposito
                     ? <ArrowDownCircle size={13} style={{ color: '#16A34A', flexShrink: 0 }} />
                     : <Clock size={13} style={{ color: '#B45309', flexShrink: 0 }} />}
@@ -507,6 +524,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
             <>
             <td className="px-3 py-2.5" style={{ overflow: 'hidden' }}>
               <span style={{ fontWeight: 450, color: 'var(--ink)', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.descripcion}</span>
+              <CadenaLabel cadena={cadenaDe(v)} />
             </td>
             {/* Bloque GUÍA */}
             <td className="px-3 py-2.5" style={{ borderLeft: divisor(3) }}>
@@ -632,11 +650,36 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
     });
   };
 
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const action = (event as CustomEvent<string>).detail;
+      if (action === 'exportar') { void handleExportExcel(); return; }
+      if (readOnly) return;
+      if (action === 'viaje') openForm('viaje');
+      else if (action === 'deposito') openForm('deposito');
+      else if (action === 'facturas') void openFacturas();
+    };
+    window.addEventListener('mobile-viajes-action', handler);
+    return () => window.removeEventListener('mobile-viajes-action', handler);
+  });
+
+  const changeFilters = (next: FiltrosViaje) => {
+    setFiltros(next);
+    const date = next.fecha_desde ?? next.fecha_hasta;
+    if (date) setMobileMonth(date.slice(0, 7));
+    else if (next.mes) {
+      const parsed = parse(next.mes, 'MMMM yyyy', new Date(), { locale: es });
+      if (isValid(parsed)) setMobileMonth(format(parsed, 'yyyy-MM'));
+    }
+  };
+  const mobileRecord = allViajes.find(v => v.id === mobileRecordId);
+  const filterCount = Object.values(filtros).filter(Boolean).length;
+
   return (
-    <div className="space-y-5 pb-16">
+    <div className="viajes-view space-y-5 pb-16" data-mobile-view={mobileView}>
 
       {/* Header */}
-      <div className="flex items-end justify-between gap-4 pt-2 flex-wrap">
+      <div className="viajes-header flex items-end justify-between gap-4 pt-2 flex-wrap">
         <div>
           {readOnly && (
             <p className="eyebrow mb-1" style={{ color: 'var(--dust)' }}>Solo lectura</p>
@@ -645,27 +688,9 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
           <h1 className="text-4xl" style={{ fontWeight: 500, letterSpacing: '-0.02em' }}>Viajes</h1>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="viajes-actions flex items-center gap-2 flex-wrap">
           {/* Botón Exportar Excel — siempre disponible (tanto Admin como Solo Lectura) */}
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            disabled={exportando || viajes.length === 0}
-            className="btn-outline flex items-center gap-2 transition-all duration-150 cursor-pointer disabled:opacity-40"
-            style={{
-              padding: '9px 18px',
-              fontSize: 13,
-              fontWeight: 500,
-              borderColor: 'rgba(20,20,19,.15)',
-              background: 'var(--white)',
-              color: 'var(--ink)',
-              boxShadow: '0 1px 2px rgba(20,20,19,.04)',
-            }}
-            title="Exportar a Excel los datos con los filtros actuales"
-          >
-            <FileSpreadsheet size={15} style={{ color: '#16A34A' }} />
-            <span>{exportando ? 'Generando Excel…' : `Exportar Excel (${viajes.length})`}</span>
-          </button>
+          <ExportExcelButton total={viajes.length} loading={exportando} onExport={handleExportExcel} />
 
           {!readOnly && (
             <>
@@ -687,17 +712,37 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
       </div>
 
       {/* Filtros — Visibles para todos para permitir filtrar por fechas y exportar */}
-      <FiltroBarra
-        filtros={filtros}
-        meses={meses}
-        onChange={setFiltros}
-        onExport={handleExportExcel}
-        exportando={exportando}
-        totalFiltrados={viajes.length}
-      />
+      <CadenaSwitch value={filtros.cadena} conGeneral={allViajes.some(v => cadenaDe(v) === null)}
+        onChange={cadena => setFiltros(prev => ({ ...prev, cadena }))} />
+
+      <div className="mobile-view-toolbar lg:hidden">
+        <div role="group" aria-label="Vista de viajes">
+          <button type="button" aria-pressed={mobileView === 'calendario'} onClick={() => setMobileView('calendario')}><CalendarDays size={16} />Calendario</button>
+          <button type="button" aria-pressed={mobileView === 'lista'} onClick={() => setMobileView('lista')}><List size={16} />Lista</button>
+        </div>
+        <button type="button" aria-expanded={mobileFilters} aria-controls="viajes-filtros" onClick={() => setMobileFilters(value => !value)}><SlidersHorizontal size={16} /><span>Filtros{filterCount ? ` (${filterCount})` : ''}</span></button>
+      </div>
+      <div id="viajes-filtros" className={`space-y-2 ${mobileFilters || mobileView === 'lista' ? '' : 'hidden lg:block'}`}>
+        <FiltroBarra
+          filtros={filtros}
+          meses={meses}
+          onChange={changeFilters}
+          exportando={exportando}
+          totalFiltrados={viajes.length}
+        />
+
+      </div>
+
+      {mobileView === 'calendario' && <div className="lg:hidden">
+        <MobileViajesCalendar viajes={viajes} mes={mobileMonth} loading={loading} onOpen={setMobileRecordId}
+          onMonthChange={mes => {
+            setMobileMonth(mes);
+            setFiltros(prev => ({ ...prev, mes: undefined, fecha_desde: undefined, fecha_hasta: undefined }));
+          }} />
+      </div>}
 
       {/* ── Tabla desktop ───────────────────────────────────── */}
-      <div className="hidden sm:block card-stadium">
+      <div className="hidden lg:block card-stadium">
         {/* Este div es el contenedor de scroll: la cabecera sticky se ancla a
             su borde superior, no al viewport. Sin maxHeight no hay scroll
             propio y el sticky nunca se activaría. */}
@@ -820,7 +865,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
       </div>
 
       {/* ── Cards mobile ──────────────────────────────────── */}
-      <div className="sm:hidden space-y-4">
+      <div className={`viajes-mobile-list lg:hidden space-y-4 ${mobileView === 'calendario' ? 'hidden' : ''}`}>
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="p-5 space-y-3 rounded-3xl" style={{ background: 'var(--white)', boxShadow: 'var(--shadow-card)' }}>
@@ -899,6 +944,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                         <div className="flex-1 min-w-0">
                           {isDeposito ? (
                             <>
+                              <CadenaLabel cadena={cadenaDe(v)} />
                               <div className="flex items-center gap-1.5">
                                 <span className="badge-pill shrink-0" style={{ background: '#DCFCE7', color: '#14532D', fontSize: 10, padding: '1px 7px' }}>Depósito</span>
                                 <span style={{ fontSize: 11, color: 'var(--slate)' }}>{fmtCorto(v.fecha_traslado)}</span>
@@ -924,6 +970,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                           ) : (
                             <>
                               <p className="font-medium truncate" style={{ color: 'var(--ink)', fontSize: 13, lineHeight: 1.3 }}>{v.descripcion}</p>
+                              <CadenaLabel cadena={cadenaDe(v)} />
                               <div className="flex items-center gap-1.5 mt-0.5" style={{ fontSize: 10, color: 'var(--slate)', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                                 <span>{fmtCorto(v.fecha_carga)} → {fmtCorto(v.fecha_traslado)}</span>
                                 <span style={{ color: 'var(--dust)' }}>·</span>
@@ -1044,6 +1091,17 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
       </div>
 
       {/* Modals */}
+      {mobileRecord && <MobileViajeDetail viaje={mobileRecord} readOnly={readOnly} toggling={toggling === mobileRecord.id}
+        onClose={() => setMobileRecordId(null)}
+        onEdit={() => { setMobileRecordId(null); setEditViaje(mobileRecord); setShowForm(true); }}
+        onDelete={() => { setMobileRecordId(null); setConfirmDelete({ id: mobileRecord.id, label: mobileRecord.descripcion || mobileRecord.mes }); }}
+        onToggle={handleToggle}
+        onPreview={(driveId, label) => setPreview({ driveId, label })}
+        onUploaded={(tipo, driveId) => {
+          const field = tipo === 'guias' ? 'drive_id_guia' : 'drive_id_factura';
+          setAllViajes(prev => prev.map(v => v.id === mobileRecord.id ? { ...v, [field]: driveId } : v));
+          window.dispatchEvent(new CustomEvent('viajes-updated'));
+        }} />}
       {confirmDelete && (
         <ConfirmDialog
           title="Eliminar registro"
@@ -1057,6 +1115,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
       {showForm && (
         <ViajeForm
           viaje={editViaje}
+          initialCadena={filtros.cadena === 'general' ? undefined : filtros.cadena}
           initialTipo={editViaje ? editViaje.tipo : newTipo}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditViaje(undefined); }}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/server';
 import { ViajeInsert, FiltrosViaje } from '@/types';
+import { esCadena } from '@/lib/cadenas';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -13,12 +14,19 @@ export async function GET(req: NextRequest) {
   let query = supabase.from('viajes').select('*').order('fecha_traslado', { ascending: false });
 
   const filtros: FiltrosViaje = {
+    cadena: (searchParams.get('cadena') as FiltrosViaje['cadena']) ?? undefined,
     mes: searchParams.get('mes') ?? undefined,
     estado: (searchParams.get('estado') as FiltrosViaje['estado']) ?? undefined,
     detraccion: (searchParams.get('detraccion') as FiltrosViaje['detraccion']) ?? undefined,
     fecha_desde: searchParams.get('fecha_desde') ?? undefined,
     fecha_hasta: searchParams.get('fecha_hasta') ?? undefined,
   };
+
+  if (filtros.cadena && filtros.cadena !== 'general' && !esCadena(filtros.cadena)) {
+    return NextResponse.json({ error: 'Cadena no válida.' }, { status: 400 });
+  }
+  if (filtros.cadena === 'general') query = query.is('cadena', null);
+  else if (filtros.cadena) query = query.eq('cadena', filtros.cadena);
 
   if (filtros.mes) query = query.eq('mes', filtros.mes);
   if (filtros.estado) query = query.eq('estado', filtros.estado);
@@ -37,6 +45,9 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const body: ViajeInsert = await req.json();
+  if ((body.cadena !== null && !esCadena(body.cadena)) || (body.tipo === 'viaje' && !esCadena(body.cadena))) {
+    return NextResponse.json({ error: 'Selecciona Ripley u Oechsle para el viaje, o General FART para un depósito o saldo.' }, { status: 400 });
+  }
 
   if (body.tipo === 'saldo_anterior') {
     body.fecha_carga = body.fecha_carga || '1900-01-01';
@@ -62,6 +73,9 @@ export async function POST(req: NextRequest) {
   const supabase = await createAdminClient();
   const { data, error } = await supabase.from('viajes').insert(body).select().single();
 
+  if (error?.code === 'PGRST204' && error.message.includes('cadena')) {
+    return NextResponse.json({ error: 'Falta aplicar la migración de cadenas en Supabase antes de guardar.' }, { status: 503 });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data, { status: 201 });
 }

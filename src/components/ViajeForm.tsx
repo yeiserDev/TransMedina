@@ -1,18 +1,27 @@
 'use client';
 
-import { useState } from 'react';
-import { Viaje, ViajeInsert, TipoRegistro } from '@/types';
+import { useEffect, useId, useRef, useState } from 'react';
+import { Viaje, ViajeInsert, TipoRegistro, Cadena } from '@/types';
+import { CADENAS, cadenaDe } from '@/lib/cadenas';
 import { X, Truck, Wallet, AlertCircle, ArrowDownCircle } from 'lucide-react';
+
+import FechaPicker from './FechaPicker';
+import MontoInput from './MontoInput';
+import EstadoControl from './EstadoControl';
+import CadenaLabel from './CadenaLabel';
+import styles from './ViajeForm.module.css';
 
 interface Props {
   viaje?: Viaje;
   initialTipo?: TipoRegistro;
+  initialCadena?: Cadena;
   onSave: (data: ViajeInsert) => Promise<void>;
   onClose: () => void;
 }
 
-const getInitial = (tipo: TipoRegistro): ViajeInsert => ({
+const getInitial = (tipo: TipoRegistro, cadena: Cadena | null = null): ViajeInsert => ({
   tipo,
+  cadena,
   fecha_carga: '', fecha_traslado: '', mes: '',
   descripcion: tipo === 'deposito' ? 'Depósito recibido' : tipo === 'saldo_anterior' ? '' : 'Lima - Huancayo',
   numero_guia: '', estado: 'pendiente',
@@ -22,18 +31,29 @@ const getInitial = (tipo: TipoRegistro): ViajeInsert => ({
 
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
-export default function ViajeForm({ viaje, initialTipo = 'viaje', onSave, onClose }: Props) {
+export default function ViajeForm({ viaje, initialTipo = 'viaje', initialCadena, onSave, onClose }: Props) {
   const [form, setForm] = useState<ViajeInsert>(
     viaje ? {
       tipo: viaje.tipo,
+      cadena: cadenaDe(viaje),
       fecha_carga:    viaje.fecha_carga?.startsWith('1900') ? '' : viaje.fecha_carga,
       fecha_traslado: viaje.fecha_traslado?.startsWith('1900') ? '' : viaje.fecha_traslado,
       mes: viaje.mes, descripcion: viaje.descripcion,
       numero_guia: viaje.numero_guia ?? '', estado: viaje.estado,
       numero_factura: viaje.numero_factura ?? '', detraccion: viaje.detraccion,
       monto: viaje.monto, drive_id_guia: viaje.drive_id_guia, drive_id_factura: viaje.drive_id_factura,
-    } : getInitial(initialTipo)
+    } : getInitial(initialTipo, initialCadena)
   );
+  const id = useId();
+  const dialog = useRef<HTMLDivElement>(null);
+  const inicioEnFondo = useRef(false);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    dialog.current?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
+    return () => { document.body.style.overflow = overflow; previous?.focus({ preventScroll: true }); };
+  }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const set = (f: keyof ViajeInsert, v: unknown) => setForm(p => ({ ...p, [f]: v }));
@@ -44,11 +64,13 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', onSave, onClos
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setError('');
+    if (isViaje && !form.cadena) { setError('Selecciona la cadena de la carga: Ripley u Oechsle.'); return; }
     if (isSaldo   && (!form.mes || !form.monto))           { setError('Ingresa el mes y el monto.'); return; }
     if (isDeposito && (!form.fecha_traslado || !form.monto)) { setError('Ingresa la fecha y el monto.'); return; }
     if (isViaje   && (!form.fecha_carga || !form.fecha_traslado || !form.monto)) {
       setError('Completa los campos obligatorios.'); return;
     }
+    if (!Number.isFinite(form.monto) || form.monto <= 0) { setError('Ingresa un monto mayor a cero.'); return; }
     setLoading(true);
     try { await onSave(form); onClose(); }
     catch (err: unknown) { setError(err instanceof Error ? err.message : 'Error al guardar.'); }
@@ -59,22 +81,37 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', onSave, onClos
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 anim-fade-in"
+      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center anim-fade-in ${styles.overlay}`}
       style={{ background: 'rgba(14,14,13,.72)' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      onPointerDownCapture={e => { inicioEnFondo.current = e.target === e.currentTarget; }}
+      onPointerCancel={() => { inicioEnFondo.current = false; }}
+      onClick={e => {
+        if (inicioEnFondo.current && e.target === e.currentTarget && !loading) onClose();
+        inicioEnFondo.current = false;
+      }}
+      onKeyDown={e => {
+        if ((e.target as HTMLElement).closest('[data-date-picker-panel]')) return;
+        if (e.key === 'Escape' && !loading) { e.preventDefault(); onClose(); }
+        if (e.key === 'Tab') {
+          const elements = [...(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not([type="radio"]):not(:disabled), input[type="radio"]:checked, select:not(:disabled), textarea:not(:disabled)') ?? [])].filter(el => el.offsetParent !== null);
+          const first = elements[0]; const last = elements.at(-1);
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+        }
+      }}
     >
       <div
-        className="w-full max-w-lg max-h-[92vh] overflow-y-auto anim-scale-in"
+        ref={dialog} role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} aria-busy={loading}
+        className={`anim-scale-in ${styles.dialog}`}
+        data-cadena={form.cadena ?? 'general'}
         style={{
-          background: 'var(--white)',
           borderRadius: 'var(--r-hero)',
-          boxShadow: '0 32px 80px rgba(0,0,0,.32), 0 0 0 1px rgba(20,20,19,.1)',
         }}
       >
         {/* Accent bar */}
-        <div style={{
+        <div className={styles.accent} style={{
           height: 4,
-          background: isDeposito
+          background: form.cadena ? 'var(--brand-accent)' : isDeposito
             ? 'linear-gradient(90deg, #16A34A 0%, #4ADE80 100%)'
             : 'linear-gradient(90deg, var(--ink) 0%, var(--signal-light) 100%)',
           borderRadius: '40px 40px 0 0',
@@ -82,17 +119,19 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', onSave, onClos
 
         {/* Header */}
         <div
-          className="flex items-center justify-between px-7 py-5"
-          style={{ borderBottom: '1px solid rgba(20,20,19,.07)', background: 'var(--canvas)' }}
+          className={`flex items-center justify-between gap-3 px-7 py-5 ${styles.header}`}
         >
           <div>
             <p className="eyebrow mb-1">{viaje ? 'Modificar registro' : 'Nuevo registro'}</p>
-            <h2 className="text-xl" style={{ fontWeight: 600, letterSpacing: '-0.025em' }}>
-              {viaje ? `Editar ${tipoLabel.toLowerCase()}` : tipoLabel}
-            </h2>
+            <div className={styles.titleRow}>
+              <h2 id={`${id}-title`} className="text-xl" style={{ fontWeight: 600, letterSpacing: '-0.025em' }}>
+                {viaje ? `Editar ${tipoLabel.toLowerCase()}` : tipoLabel}
+              </h2>
+              {form.cadena && <span key={form.cadena} className={styles.brandBadge}><CadenaLabel cadena={form.cadena} /></span>}
+            </div>
           </div>
           <button
-            onClick={onClose}
+            type="button" aria-label="Cerrar formulario" disabled={loading} onClick={onClose}
             className="w-9 h-9 rounded-full flex items-center justify-center transition-all duration-150"
             style={{ color: 'var(--slate)', background: 'rgba(20,20,19,.06)', border: 'none' }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(20,20,19,.12)'}
@@ -102,7 +141,7 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', onSave, onClos
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-7 py-6 space-y-5">
+        <form onSubmit={handleSubmit} className={`space-y-5 ${styles.body}`}>
 
           {/* Tipo toggle — solo al crear */}
           {!viaje && (
@@ -119,7 +158,8 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', onSave, onClos
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setForm(getInitial(value))}
+                  disabled={loading}
+                  onClick={() => { if (form.tipo !== value) { setForm(getInitial(value, form.cadena)); setError(''); } }}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm transition-all duration-150"
                   style={{
                     borderRadius: 'calc(var(--r-hero) - 10px)',
@@ -139,6 +179,25 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', onSave, onClos
           )}
 
           {/* ── Depósito ──────────────────────────────── */}
+          <fieldset>
+            <legend className="block text-sm font-semibold mb-2">
+              {isViaje ? 'Cadena de la carga *' : isDeposito ? 'Aplicar el depósito a' : 'Cuenta del saldo anterior'}
+            </legend>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Cadena">
+              {[...CADENAS, ...(!isViaje ? [{ value: null, label: 'General FART' }] : [])].map(item => (
+                <button key={item.value ?? 'general'} type="button" aria-pressed={form.cadena === item.value}
+                  disabled={loading}
+                  onClick={() => set('cadena', item.value)} className={styles.chainOption}>
+                  {item.value ? <CadenaLabel cadena={item.value} /> : item.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs mt-2" style={{ color: 'var(--slate)', lineHeight: 1.5 }}>
+              {isViaje ? 'FART te contrata y paga el flete. La cadena identifica de quién es la carga.'
+                : 'Usa General FART si el monto no corresponde a una cadena específica. Solo descontará del total de FART.'}
+            </p>
+          </fieldset>
+
           {isDeposito && (
             <>
               <div className="flex items-start gap-3 px-4 py-3" style={{
@@ -152,32 +211,20 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', onSave, onClos
               </div>
 
               <div>
-                <label className="eyebrow block mb-2">Fecha de depósito *</label>
-                <input type="date" required value={form.fecha_traslado}
-                  onChange={e => set('fecha_traslado', e.target.value)} className="input-field" />
+                <label htmlFor={`${id}-deposito`} className="eyebrow block mb-2">Fecha de depósito *</label>
+                <FechaPicker id={`${id}-deposito`} label="Fecha de depósito" value={form.fecha_traslado} onChange={value => set('fecha_traslado', value)} />
               </div>
 
               <div>
-                <label className="eyebrow block mb-2">Descripción</label>
-                <input type="text" value={form.descripcion} placeholder="Depósito FART enero"
+                <label htmlFor={`${id}-descripcion`} className="eyebrow block mb-2">Descripción</label>
+                <input id={`${id}-descripcion`} type="text" value={form.descripcion} placeholder="Depósito FART enero"
                   onChange={e => set('descripcion', e.target.value)} className="input-field" />
               </div>
 
               <div>
-                <label className="eyebrow block mb-2">Monto (S/) *</label>
-                <div className="flex items-center input-field" style={{ padding: 0, overflow: 'hidden' }}>
-                  <span className="px-4 text-sm font-semibold shrink-0" style={{ color: 'var(--slate)' }}>S/</span>
-                  <input
-                    type="number" required min="0" step="0.01"
-                    value={form.monto || ''} placeholder="0.00"
-                    onChange={e => set('monto', parseFloat(e.target.value) || 0)}
-                    style={{
-                      flex: 1, padding: '10px 16px 10px 0', background: 'transparent',
-                      border: 'none', outline: 'none', fontFamily: 'inherit', fontSize: 14,
-                      color: 'var(--ink)', fontWeight: 450,
-                    }}
-                  />
-                </div>
+                <label htmlFor={`${id}-monto`} className="eyebrow block mb-2">Monto (S/) *</label>
+                <MontoInput key={form.tipo} id={`${id}-monto`} value={form.monto} onChange={value => set('monto', value)} />
+                <p id={`${id}-monto-ayuda`} className={styles.amountHint}>Soles · ejemplo: 1,234.50</p>
               </div>
             </>
           )}
@@ -198,7 +245,7 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', onSave, onClos
               <div>
                 <label className="eyebrow block mb-2">Mes *</label>
                 <div className="grid grid-cols-2 gap-2">
-                  <select required
+                  <select required aria-label="Mes del saldo anterior"
                     value={form.mes?.split(' ')[0] ?? ''}
                     onChange={e => { const y = form.mes?.split(' ')[1] ?? new Date().getFullYear().toString(); set('mes', `${e.target.value} ${y}`); }}
                     className="input-field"
@@ -206,7 +253,7 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', onSave, onClos
                     <option value="">Mes</option>
                     {MESES.map(m => <option key={m} value={m}>{m.charAt(0).toUpperCase()+m.slice(1)}</option>)}
                   </select>
-                  <select required
+                  <select required aria-label="Año del saldo anterior"
                     value={form.mes?.split(' ')[1] ?? ''}
                     onChange={e => { const m = form.mes?.split(' ')[0] ?? ''; set('mes', `${m} ${e.target.value}`); }}
                     className="input-field"
@@ -218,20 +265,9 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', onSave, onClos
               </div>
 
               <div>
-                <label className="eyebrow block mb-2">Monto (S/) *</label>
-                <div className="flex items-center input-field" style={{ padding: 0, overflow: 'hidden' }}>
-                  <span className="px-4 text-sm font-semibold shrink-0" style={{ color: 'var(--slate)' }}>S/</span>
-                  <input
-                    type="number" required min="0" step="0.01"
-                    value={form.monto || ''} placeholder="0.00"
-                    onChange={e => set('monto', parseFloat(e.target.value) || 0)}
-                    style={{
-                      flex: 1, padding: '10px 16px 10px 0', background: 'transparent',
-                      border: 'none', outline: 'none', fontFamily: 'inherit', fontSize: 14,
-                      color: 'var(--ink)', fontWeight: 450,
-                    }}
-                  />
-                </div>
+                <label htmlFor={`${id}-monto`} className="eyebrow block mb-2">Monto (S/) *</label>
+                <MontoInput key={form.tipo} id={`${id}-monto`} value={form.monto} onChange={value => set('monto', value)} />
+                <p id={`${id}-monto-ayuda`} className={styles.amountHint}>Soles · ejemplo: 1,234.50</p>
               </div>
             </>
           )}
@@ -239,79 +275,54 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', onSave, onClos
           {/* ── Viaje normal ─────────────────────────── */}
           {isViaje && (
             <>
-              <div className="grid grid-cols-2 gap-3">
+              <div className={styles.columns}>
                 <div>
-                  <label className="eyebrow block mb-2">F. Carga *</label>
-                  <input type="date" required value={form.fecha_carga}
-                    onChange={e => set('fecha_carga', e.target.value)} className="input-field" />
+                  <label htmlFor={`${id}-fecha_carga`} className="eyebrow block mb-2">F. Carga *</label>
+                  <FechaPicker id={`${id}-fecha_carga`} label="Fecha de carga" value={form.fecha_carga} onChange={value => set('fecha_carga', value)} />
                 </div>
                 <div>
-                  <label className="eyebrow block mb-2">F. Traslado *</label>
-                  <input type="date" required value={form.fecha_traslado}
-                    onChange={e => set('fecha_traslado', e.target.value)} className="input-field" />
+                  <label htmlFor={`${id}-fecha_traslado`} className="eyebrow block mb-2">F. Traslado *</label>
+                  <FechaPicker id={`${id}-fecha_traslado`} label="Fecha de traslado" value={form.fecha_traslado} onChange={value => set('fecha_traslado', value)} />
                 </div>
               </div>
 
               <div>
-                <label className="eyebrow block mb-2">Descripción</label>
-                <input type="text" value={form.descripcion} placeholder="Lima - Huancayo"
+                <label htmlFor={`${id}-descripcion`} className="eyebrow block mb-2">Descripción</label>
+                <input id={`${id}-descripcion`} type="text" value={form.descripcion} placeholder="Lima - Huancayo"
                   onChange={e => set('descripcion', e.target.value)} className="input-field" />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className={styles.columns}>
                 <div>
-                  <label className="eyebrow block mb-2">N° Guía</label>
-                  <input type="text" value={form.numero_guia ?? ''} placeholder="EG03-00000"
+                  <label htmlFor={`${id}-guia`} className="eyebrow block mb-2">N° Guía</label>
+                  <input id={`${id}-guia`} type="text" value={form.numero_guia ?? ''} placeholder="EG03-00000"
                     onChange={e => set('numero_guia', e.target.value)}
                     className="input-field" style={{ fontFamily: 'monospace' }} />
                 </div>
                 <div>
-                  <label className="eyebrow block mb-2">N° Factura</label>
-                  <input type="text" value={form.numero_factura ?? ''} placeholder="E001-0000"
+                  <label htmlFor={`${id}-factura`} className="eyebrow block mb-2">N° Factura</label>
+                  <input id={`${id}-factura`} type="text" value={form.numero_factura ?? ''} placeholder="E001-0000"
                     onChange={e => set('numero_factura', e.target.value)}
                     className="input-field" style={{ fontFamily: 'monospace' }} />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="eyebrow block mb-2">Estado factura</label>
-                  <select value={form.estado} onChange={e => set('estado', e.target.value)} className="input-field">
-                    <option value="pendiente">Pendiente</option>
-                    <option value="facturado">Facturado</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="eyebrow block mb-2">Detracción</label>
-                  <select value={form.detraccion} onChange={e => set('detraccion', e.target.value)} className="input-field">
-                    <option value="pendiente">Pendiente</option>
-                    <option value="realizado">Realizado</option>
-                  </select>
-                </div>
+              <div className={styles.columns}>
+                <EstadoControl label="Estado factura" value={form.estado} completado={{ value: 'facturado', label: 'Facturado' }} onChange={value => set('estado', value)} />
+                <EstadoControl label="Detracción" value={form.detraccion} completado={{ value: 'realizado', label: 'Realizado' }} onChange={value => set('detraccion', value)} />
               </div>
 
               <div>
-                <label className="eyebrow block mb-2">Monto flete (S/) *</label>
-                <div className="flex items-center input-field" style={{ padding: 0, overflow: 'hidden' }}>
-                  <span className="px-4 text-sm font-semibold shrink-0" style={{ color: 'var(--slate)' }}>S/</span>
-                  <input
-                    type="number" required min="0" step="0.01"
-                    value={form.monto || ''} placeholder="0.00"
-                    onChange={e => set('monto', parseFloat(e.target.value) || 0)}
-                    style={{
-                      flex: 1, padding: '10px 16px 10px 0', background: 'transparent',
-                      border: 'none', outline: 'none', fontFamily: 'inherit', fontSize: 14,
-                      color: 'var(--ink)', fontWeight: 450,
-                    }}
-                  />
-                </div>
+                <label htmlFor={`${id}-monto`} className="eyebrow block mb-2">Monto flete (S/) *</label>
+                <MontoInput key={form.tipo} id={`${id}-monto`} value={form.monto} onChange={value => set('monto', value)} />
+                <p id={`${id}-monto-ayuda`} className={styles.amountHint}>Soles · ejemplo: 1,234.50</p>
               </div>
             </>
           )}
 
           {/* Error */}
           {error && (
-            <div className="flex items-start gap-3 px-4 py-3" style={{
+            <div role="alert" className="flex items-start gap-3 px-4 py-3" style={{
               borderRadius: 'var(--r-btn)', background: '#FFF5F5',
               border: '1px solid rgba(207,69,0,.35)',
             }}>
@@ -323,7 +334,7 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', onSave, onClos
           <div style={{ height: 1, background: 'rgba(20,20,19,.07)' }} />
 
           <div className="flex gap-3">
-            <button type="button" onClick={onClose} className="btn-outline flex-1">Cancelar</button>
+            <button type="button" disabled={loading} onClick={onClose} className="btn-outline flex-1">Cancelar</button>
             <button type="submit" disabled={loading} className="btn-ink flex-1"
               style={isDeposito ? { background: '#16A34A', borderColor: '#16A34A' } : {}}>
               {loading ? 'Guardando…' : viaje ? 'Guardar cambios' : `Crear ${tipoLabel.toLowerCase()}`}

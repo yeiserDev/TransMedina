@@ -1,0 +1,29 @@
+.sheet { position: fixed; inset: auto 0 0; width: min(100%, 600px); max-width: 100%; max-height: calc(100dvh - 24px); margin: auto auto 0; padding: 0 0 env(safe-area-inset-bottom); border: 0; border-radius: 28px 28px 0 0; background: var(--white); color: var(--ink); overflow: hidden; }
+.sheet[open] { display: flex; flex-direction: column; }
+.sheet::backdrop { background: rgb(14 14 13 / 58%); }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; padding: 20px; border-bottom: 1px solid var(--canvas); }
+.header h2 { margin-bottom: 4px; font-size: 19px; font-weight: 600; letter-spacing: -.02em; }
+.header > button { display: grid; place-items: center; width: 44px; min-height: 44px; border-radius: 50%; background: var(--canvas); cursor: pointer; }
+.body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px; }
+.route { margin-bottom: 20px; font-size: 21px; font-weight: 500; overflow-wrap: anywhere; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 12px; }
+.fields dt, .statuses p { margin-bottom: 6px; font-size: 12px; color: var(--slate); }
+.fields dd { font-size: 14px; font-weight: 500; }
+.price dd { font-size: 21px; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.statuses { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 24px; }
+.documents { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--canvas); }
+.documents h3 { margin-bottom: 12px; font-size: 15px; font-weight: 600; }
+.documents :is(button, a) { min-height: 44px; min-width: 44px; }
+.docRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 0; }
+.docRow + .docRow { border-top: 1px solid var(--canvas); }
+.docRow > span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.docRow strong { font-size: 12px; font-weight: 500; color: var(--slate); }
+.docRow span span { font-size: 13px; overflow-wrap: anywhere; }
+.docRow button { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--canvas); border-radius: var(--r-pill); font-size: 12px; white-space: nowrap; cursor: pointer; }
+.docRow small { font-size: 11px; color: var(--slate); }
+.statuses button { min-height: 44px; }
+.footer { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; flex-shrink: 0; padding: 16px 20px; border-top: 1px solid var(--canvas); }
+.footer button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; border-radius: var(--r-pill); font-size: 13px; cursor: pointer; }
+.footer button:first-child { background: var(--ink); color: var(--canvas); }
+.footer button:last-child { background: var(--canvas); color: var(--signal); }
+.sheet button:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }

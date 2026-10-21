@@ -1,0 +1,20 @@
+.group { display: inline-flex; align-items: center; min-height: 40px; border: 1px solid rgb(20 20 19 / 15%); border-radius: var(--r-pill); background: var(--white); }
+.export { display: flex; align-items: center; justify-content: center; flex: 1; gap: 8px; min-height: 38px; padding: 8px 8px 8px 16px; border-radius: var(--r-pill); color: var(--ink); font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.export svg { color: #16853E; flex-shrink: 0; }
+.export:hover:not(:disabled) { background: var(--canvas-lifted); }
+.export:disabled { opacity: .4; cursor: not-allowed; }
+.help { display: grid; place-items: center; width: 28px; min-height: 30px; margin-right: 6px; border-radius: var(--r-pill); color: var(--slate); cursor: pointer; }
+.help:hover, .help[aria-expanded='true'] { color: var(--ink); background: var(--canvas); }
+.group button:focus-visible, .panel button:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+.panel { position: fixed; z-index: 100; width: 296px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; padding: 20px; background: var(--canvas-lifted); color: var(--ink); border-radius: 18px; box-shadow: 0 12px 40px rgb(20 20 19 / 18%); }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.heading h2 { font-size: 15px; font-weight: 650; letter-spacing: -.02em; }
+.heading button { display: grid; place-items: center; min-width: 28px; min-height: 28px; border-radius: 50%; color: var(--slate); cursor: pointer; }
+.heading button:hover { background: var(--canvas); }
+.steps { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 16px; }
+.steps li { display: flex; align-items: flex-start; gap: 12px; }
+.steps svg { flex-shrink: 0; margin-top: 2px; color: var(--slate); }
+.steps strong { display: block; font-size: 13px; font-weight: 600; }
+.steps p { margin-top: 3px; color: var(--slate); font-size: 12px; line-height: 1.5; }
+.note { margin-top: 16px; padding-top: 12px; border-top: 1px solid #E5E0DB; color: var(--slate); font-size: 11px; line-height: 1.5; }
+@media (max-width: 1023px) { .group { width: 100%; min-height: 44px; } .export { min-height: 42px; padding-left: 12px; font-size: 12px; } .help { min-height: 38px; } }
