@@ -30,37 +30,44 @@ export function ToggleDetraccion({
   descripcion,
   onToggle,
   loading,
+  readOnly = false,
 }: {
   detraccion: EstadoDetraccion;
   viajeId: string;
   descripcion?: string;
   onToggle: (id: string, valor: EstadoDetraccion) => void;
   loading?: boolean;
+  readOnly?: boolean;
 }) {
   const next: EstadoDetraccion = detraccion === 'pendiente' ? 'realizado' : 'pendiente';
   const ok = detraccion === 'realizado';
   const base = badgeBaseFacturacion(descripcion ?? '');
   const importe = base * 0.04; // S/40 (HYO) o S/80 (PUC)
+  const style = ok
+    ? { background: '#E6F4EC', color: '#166534' }
+    : { background: '#FFF3E0', color: '#B45309' };
+  const content = <>
+    {loading && !readOnly
+      ? <Loader2 size={11} className="animate-spin" />
+      : ok ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+    {ok ? 'Pagada' : 'Por pagar'}
+    <span style={{ opacity: 0.8, fontSize: 10, marginLeft: 2 }}>S/{importe}</span>
+  </>;
+
+  if (readOnly) return <span className="badge-pill" style={style}>{content}</span>;
 
   return (
     <button
+      type="button"
       onClick={() => onToggle(viajeId, next)}
       disabled={loading}
+      aria-pressed={ok}
+      aria-label={`Detracción ${ok ? 'pagada' : 'por pagar'}, S/ ${importe}. Marcar como ${ok ? 'por pagar' : 'pagada'}`}
+      title={`Marcar detracción como ${ok ? 'por pagar' : 'pagada'}`}
       className="badge-pill transition-opacity cursor-pointer disabled:opacity-50"
-      style={
-        ok
-          ? { background: '#E6F4EC', color: '#166534' }
-          : { background: '#FFF3E0', color: '#B45309' }
-      }
+      style={style}
     >
-      {loading
-        ? <Loader2 size={11} className="animate-spin" />
-        : ok ? <CheckCircle2 size={11} /> : <Clock size={11} />
-      }
-      {ok ? 'Realizado' : 'Pendiente'}
-      <span style={{ opacity: 0.65, fontSize: 10, marginLeft: 2 }}>
-        · S/{importe}
-      </span>
+      {content}
     </button>
   );
 }

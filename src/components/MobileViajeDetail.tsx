@@ -30,7 +30,7 @@ function RouteOverview({ description }: { description: string }) {
       <circle cx="315" cy="22" r="6" fill="var(--signal)" stroke="white" strokeWidth="3" />
     </svg>
     <div className={styles.endpoints}><div><span>Origen</span><h3>{origin}</h3></div><div><span>Destino</span><h3>{destination}</h3></div></div>
-    <p className={styles.mapNote}>Esquema de ruta · sin seguimiento en tiempo real</p>
+    <p className={styles.mapNote}>Ruta referencial</p>
   </section>;
 }
 
@@ -71,8 +71,8 @@ export default function MobileViajeDetail({ viaje, readOnly, toggling, onClose, 
       </dl>
       {isViaje && <>
         <div className={styles.statuses}><div><p>Factura</p><BadgeEstado estado={viaje.estado} /></div><div><p>Detracción</p>
-          {readOnly ? <span className="badge-pill" style={{ background: 'var(--canvas)' }}>{viaje.detraccion === 'realizado' ? 'Realizada' : 'Pendiente'}</span>
-            : <ToggleDetraccion detraccion={viaje.detraccion} descripcion={viaje.descripcion} viajeId={viaje.id} onToggle={onToggle} loading={toggling} />}
+          <ToggleDetraccion readOnly={readOnly} detraccion={viaje.detraccion} descripcion={viaje.descripcion} viajeId={viaje.id} onToggle={onToggle} loading={toggling} />
+          <small className={styles.statusHint}>{readOnly ? 'Estado registrado manualmente' : 'Toca para cambiar el estado'}</small>
         </div></div>
         <section className={styles.documents} aria-label="Documentos del viaje"><h3>Documentos</h3>
           {readOnly ? <div className={docStyles.grid}>{(['guia', 'factura'] as const).map(tipo => {
