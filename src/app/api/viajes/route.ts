@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
     body.numero_factura = null;
     body.drive_id_guia = null;
     body.drive_id_factura = null;
+    body.drive_id_detraccion = null;
   } else {
     const fecha = new Date(body.fecha_traslado + 'T12:00:00');
     body.mes = format(fecha, 'MMMM yyyy', { locale: es });

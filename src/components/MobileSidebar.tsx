@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signIn, signOut, useSession } from 'next-auth/react';
-import { CalendarDays, FolderOpen, Wallet, X, Lock, LogOut, Truck, FileSpreadsheet, Plus, ArrowDownCircle, ClipboardList } from 'lucide-react';
+import { CalendarDays, FolderOpen, Wallet, X, Lock, LogOut, Truck, FileSpreadsheet, Plus, ArrowDownCircle, ClipboardList, Receipt } from 'lucide-react';
 import type { Viaje } from '@/types';
 import FinancialPanel from './FinancialPanel';
 import ClockWidget from './ClockWidget';
@@ -66,6 +66,7 @@ export default function MobileSidebar({ initialViajes, canManage, onClose }: {
       </header>
       <nav className={styles.navigation} aria-label="Navegación principal">
         <Link href="/" onClick={onClose} aria-current={pathname === '/' ? 'page' : undefined}><Truck size={17} />Viajes</Link>
+        <Link href="/detracciones" onClick={onClose} aria-current={pathname === '/detracciones' ? 'page' : undefined}><Receipt size={17} />Detracciones</Link>
         <Link href="/reportes" onClick={onClose} aria-current={pathname === '/reportes' ? 'page' : undefined}><FileSpreadsheet size={17} />Reportes</Link>
       </nav>
       {pathname === '/' && <div className={styles.actions}>
@@ -74,6 +75,7 @@ export default function MobileSidebar({ initialViajes, canManage, onClose }: {
           <button type="button" onClick={() => action('deposito')}><ArrowDownCircle size={16} />Registrar depósito</button>
           <button type="button" onClick={() => action('facturas')}><ClipboardList size={16} />Facturas pendientes</button>
         </>}
+        <button type="button" onClick={() => action('detracciones')}><Receipt size={16} />Detracciones</button>
         <button type="button" onClick={() => action('exportar')}><FileSpreadsheet size={16} />Exportar Excel</button>
       </div>}
       <div className={styles.sections} role="group" aria-label="Herramientas de la operación">

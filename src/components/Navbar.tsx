@@ -9,8 +9,9 @@ import type { Viaje } from '@/types';
 import MobileSidebar from './MobileSidebar';
 
 const navLinks = [
-  { href: '/',         label: 'Viajes'   },
-  { href: '/reportes', label: 'Reportes' },
+  { href: '/',             label: 'Viajes'       },
+  { href: '/detracciones', label: 'Detracciones' },
+  { href: '/reportes',     label: 'Reportes'     },
 ];
 
 export default function Navbar({ initialViajes, canManage = false }: { initialViajes?: Viaje[]; canManage?: boolean }) {

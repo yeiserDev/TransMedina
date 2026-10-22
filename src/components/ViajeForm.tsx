@@ -26,7 +26,7 @@ const getInitial = (tipo: TipoRegistro, cadena: Cadena | null = null): ViajeInse
   descripcion: tipo === 'deposito' ? 'Depósito recibido' : tipo === 'saldo_anterior' ? '' : 'Lima - Huancayo',
   numero_guia: '', estado: 'pendiente',
   numero_factura: '', detraccion: 'pendiente', monto: 0,
-  drive_id_guia: null, drive_id_factura: null,
+  drive_id_guia: null, drive_id_factura: null, drive_id_detraccion: null,
 });
 
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -41,7 +41,7 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', initialCadena,
       mes: viaje.mes, descripcion: viaje.descripcion,
       numero_guia: viaje.numero_guia ?? '', estado: viaje.estado,
       numero_factura: viaje.numero_factura ?? '', detraccion: viaje.detraccion,
-      monto: viaje.monto, drive_id_guia: viaje.drive_id_guia, drive_id_factura: viaje.drive_id_factura,
+      monto: viaje.monto, drive_id_guia: viaje.drive_id_guia, drive_id_factura: viaje.drive_id_factura, drive_id_detraccion: viaje.drive_id_detraccion ?? null,
     } : getInitial(initialTipo, initialCadena)
   );
   const id = useId();

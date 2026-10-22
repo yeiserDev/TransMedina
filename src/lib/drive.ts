@@ -42,7 +42,7 @@ export async function uploadFileToDrive(
   file: Buffer,
   fileName: string,
   mimeType: string,
-  tipo: 'guias' | 'facturas'
+  tipo: 'guias' | 'facturas' | 'detracciones'
 ): Promise<string> {
   const drive = getDriveClient(accessToken);
   const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID!;

@@ -1,52 +1,59 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Upload, ExternalLink, Loader2, Check, Eye, RefreshCw } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import {
+  Upload,
+  ExternalLink,
+  Loader2,
+  Check,
+  Eye,
+  RefreshCw,
+  Truck,
+  Receipt,
+  Coins,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDoc } from '@/lib/documentos';
-import IconoPdf from './IconoPdf';
 import DrivePreviewModal from './DrivePreviewModal';
 import cardStyles from './DocumentCards.module.css';
 
-type TipoArchivo = 'guias' | 'facturas';
+export type TipoArchivo = 'guias' | 'facturas' | 'detracciones';
 
-interface Props {
-  variant?: 'rows' | 'cards';
+interface ArchivoRowProps {
+  tipo: TipoArchivo;
+  label: string;
+  sublabel: string;
+  driveId: string | null;
   viajeId: string;
-  driveIdGuia: string | null;
-  driveIdFactura: string | null;
-  numeroGuia?: string | null;
-  numeroFactura?: string | null;
-  onUploaded: (tipo: TipoArchivo, driveId: string) => void;
+  readOnly?: boolean;
+  onUploaded?: (tipo: TipoArchivo, driveId: string) => void;
+  onPreview: (driveId: string, label: string) => void;
 }
 
 const ACEPTA = '.pdf,.png,.jpg,.jpeg';
 
-function ArchivoCard({
+function ArchivoRow({
+  tipo,
   label,
-  numero,
+  sublabel,
   driveId,
   viajeId,
-  tipo,
+  readOnly = false,
   onUploaded,
-  variant = 'rows',
-}: {
-  variant?: 'rows' | 'cards';
-  label: string;
-  numero?: string | null;
-  driveId: string | null;
-  viajeId: string;
-  tipo: TipoArchivo;
-  onUploaded: (tipo: TipoArchivo, driveId: string) => void;
-}) {
+  onPreview,
+}: ArchivoRowProps) {
   const [uploading, setUploading] = useState(false);
   const [done, setDone] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [localDriveId, setLocalDriveId] = useState<string | null>(driveId);
-  const [preview, setPreview] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    setLocalDriveId(driveId);
+  }, [driveId]);
+
   const subir = async (file: File) => {
+    if (readOnly) return;
     setUploading(true);
     try {
       const fd = new FormData();
@@ -60,7 +67,7 @@ function ArchivoCard({
       }
       const { driveId: newId } = await res.json();
       setLocalDriveId(newId);
-      onUploaded(tipo, newId);
+      onUploaded?.(tipo, newId);
 
       setDone(true);
       toast.success(`${label} subida correctamente`);
@@ -82,193 +89,278 @@ function ArchivoCard({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    if (uploading) return;
+    if (uploading || readOnly) return;
     const file = e.dataTransfer.files?.[0];
     if (file) subir(file);
   };
 
   const tieneArchivo = Boolean(localDriveId);
+  const esZonaCarga = !readOnly && !tieneArchivo && !uploading && !done;
 
-  // Sin archivo: la tarjeta entera es zona de carga (clic o arrastrar)
-  const esZonaCarga = !tieneArchivo && !uploading && !done;
-
-  if (variant === 'cards') return <>
-    <article className={cardStyles.card} data-empty={!tieneArchivo} aria-busy={uploading}
-      onDragOver={e => { e.preventDefault(); if (!uploading) setDragging(true); }}
-      onDragLeave={() => setDragging(false)} onDrop={handleDrop} data-dragging={dragging}>
-      <input ref={inputRef} type="file" accept={ACEPTA} hidden onChange={handleInput} aria-label={`Subir ${label.toLowerCase()}`} />
-      <div className={cardStyles.top}><span className={cardStyles.icon}><IconoPdf size={22} /></span><span>{tieneArchivo ? 'Adjunto' : 'Sin archivo'}</span></div>
-      <h4>{label}</h4><p className={cardStyles.number}>{formatDoc(numero) || 'Sin número'}</p>
-      {uploading ? <p className={cardStyles.feedback} role="status"><Loader2 size={16} className="animate-spin" />Subiendo…</p>
-        : <button type="button" className={cardStyles.primary} onClick={() => tieneArchivo ? setPreview(true) : inputRef.current?.click()}>
-          {tieneArchivo ? <Eye size={16} /> : <Upload size={16} />}{tieneArchivo ? 'Ver documento' : 'Subir archivo'}
-        </button>}
-      {tieneArchivo && <div className={cardStyles.actions}>
-        <a href={`https://drive.google.com/file/d/${localDriveId}/view`} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${label.toLowerCase()} en Drive`}><ExternalLink size={14} />Drive</a>
-        <button type="button" disabled={uploading} onClick={() => inputRef.current?.click()} aria-label={`Reemplazar ${label.toLowerCase()}`}><RefreshCw size={14} />Cambiar</button>
-      </div>}
-      {done && <span className={cardStyles.feedback} role="status"><Check size={14} />Archivo guardado</span>}
-    </article>
-    {preview && localDriveId && <DrivePreviewModal driveId={localDriveId} label={label} onClose={() => setPreview(false)} />}
-  </>;
+  const IconComponent =
+    tipo === 'guias' ? Truck : tipo === 'facturas' ? Receipt : Coins;
 
   return (
-    <>
-      <div
-        onDragOver={e => { e.preventDefault(); if (!uploading) setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={handleDrop}
-        onClick={() => { if (esZonaCarga) inputRef.current?.click(); }}
-        className="group flex items-center gap-2.5 sm:gap-3 rounded-2xl transition-all"
-        style={{
-          padding: '10px 12px',
-          minHeight: 58,
-          cursor: esZonaCarga ? 'pointer' : 'default',
-          background: dragging ? '#FFF6F0' : done ? '#F4FDF7' : tieneArchivo ? 'var(--white)' : 'transparent',
-          border: dragging
-            ? '1.5px dashed var(--signal-light)'
-            : done
-              ? '1.5px solid #A7E8BE'
-              : tieneArchivo
-                ? '1px solid rgba(20,20,19,.07)'
-                : '1.5px dashed rgba(20,20,19,.13)',
-          boxShadow: tieneArchivo && !dragging && !done ? 'var(--shadow-card)' : 'none',
-        }}
-        onMouseEnter={e => { if (esZonaCarga) (e.currentTarget as HTMLElement).style.background = 'rgba(20,20,19,.025)'; }}
-        onMouseLeave={e => { if (esZonaCarga) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-      >
-        <input ref={inputRef} type="file" accept={ACEPTA} hidden onChange={handleInput} />
+    <article
+      className={cardStyles.row}
+      data-empty={!tieneArchivo}
+      data-dragging={dragging}
+      data-done={done}
+      onDragOver={e => {
+        e.preventDefault();
+        if (!uploading && !readOnly) setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={handleDrop}
+      onClick={() => {
+        if (esZonaCarga) inputRef.current?.click();
+      }}
+      style={{ cursor: esZonaCarga ? 'pointer' : 'default' }}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ACEPTA}
+        hidden
+        onChange={handleInput}
+        aria-label={`Subir ${label.toLowerCase()}`}
+      />
 
-        {/* Estado visual del archivo */}
-        <div
-          className="flex items-center justify-center rounded-xl transition-colors"
-          style={{
-            width: 36,
-            height: 36,
-            flexShrink: 0,
-            background: done ? '#DCFCE7' : tieneArchivo ? '#FDECEA' : 'rgba(20,20,19,.04)',
-          }}
-        >
-          {uploading
-            ? <Loader2 size={15} className="animate-spin" style={{ color: 'var(--slate)' }} />
-            : done
-              ? <Check size={16} style={{ color: '#16A34A' }} className="anim-scale-in" />
-              : tieneArchivo
-                ? <IconoPdf size={18} />
-                : <Upload size={14} style={{ color: 'var(--dust)' }} />}
+      {/* Left side: Icon + Meta + Status */}
+      <div className={cardStyles.leftCol}>
+        <div className={cardStyles.iconBox} data-type={tipo}>
+          <IconComponent size={18} />
+          {tieneArchivo && (
+            <span className={cardStyles.iconCheck} title="Documento adjunto">
+              <Check size={10} strokeWidth={3} />
+            </span>
+          )}
         </div>
 
-        {/* Nombre, número y estado */}
-        <div className="min-w-0 flex-1">
-          <p className="eyebrow" style={{ fontSize: 9.5, letterSpacing: '0.4px', marginBottom: 1 }}>
-            {label}
-          </p>
-          <p
-            className="truncate"
-            style={{
-              fontSize: numero && !uploading && !done ? 11.5 : 11,
-              fontWeight: numero && !uploading && !done ? 600 : 500,
-              fontFamily: numero && !uploading && !done ? 'ui-monospace, SFMono-Regular, monospace' : undefined,
-              color: uploading || done || tieneArchivo || numero ? 'var(--slate)' : 'var(--dust)',
-              lineHeight: 1.35,
-            }}
-          >
-            {uploading
-              ? 'Subiendo…'
-              : done
-                ? '¡Listo!'
-                : numero
-                  ? formatDoc(numero)
-                  : tieneArchivo
-                    ? 'Documento adjunto'
-                    : 'Toca para subir'}
-          </p>
+        <div className={cardStyles.meta}>
+          <div className={cardStyles.titleLine}>
+            <span className={cardStyles.docTitle}>{label}</span>
+            <span
+              className={cardStyles.statusPill}
+              data-status={tieneArchivo ? 'ok' : 'pending'}
+            >
+              {tieneArchivo ? (
+                <>
+                  <Check size={9} strokeWidth={2.5} /> Adjunto
+                </>
+              ) : (
+                'Sin archivo'
+              )}
+            </span>
+          </div>
+          <span className={cardStyles.docNumber} title={sublabel}>
+            {sublabel}
+          </span>
         </div>
+      </div>
 
-        {/* Acciones — solo cuando ya hay archivo */}
-        {tieneArchivo && !uploading && (
-          <div
-            /* En móvil no hay hover: dejarlos atenuados los volvería inservibles */
-            className="flex items-center gap-0.5 transition-opacity opacity-100 sm:opacity-55 sm:group-hover:opacity-100"
-            style={{ flexShrink: 0 }}
-          >
+      {/* Right side: Actions / Upload State */}
+      <div className={cardStyles.rightCol} onClick={e => e.stopPropagation()}>
+        {uploading ? (
+          <div className={cardStyles.uploadingState} role="status">
+            <Loader2 size={13} className="animate-spin text-amber-600" />
+            <span>Subiendo…</span>
+          </div>
+        ) : done ? (
+          <div className={cardStyles.doneState} role="status">
+            <Check size={13} />
+            <span>¡Guardado!</span>
+          </div>
+        ) : tieneArchivo ? (
+          <>
             <button
               type="button"
-              title="Ver documento"
-              onClick={e => { e.stopPropagation(); setPreview(true); }}
-              className="flex items-center justify-center rounded-lg transition-colors cursor-pointer"
-              style={{ width: 32, height: 32, color: 'var(--slate)' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--canvas)'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = ''}
+              className={cardStyles.btnPrimary}
+              onClick={() => onPreview(localDriveId!, `${label} · ${sublabel}`)}
+              title={`Ver ${label.toLowerCase()}`}
             >
               <Eye size={13} />
+              <span>Ver</span>
             </button>
+
             <a
               href={`https://drive.google.com/file/d/${localDriveId}/view`}
               target="_blank"
               rel="noopener noreferrer"
-              title="Abrir en Drive"
-              onClick={e => e.stopPropagation()}
-              className="flex items-center justify-center rounded-lg transition-colors"
-              style={{ width: 32, height: 32, color: 'var(--slate)' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--canvas)'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = ''}
+              className={cardStyles.iconBtn}
+              title={`Abrir ${label.toLowerCase()} en Google Drive`}
             >
               <ExternalLink size={13} />
             </a>
-            <button
-              type="button"
-              title="Reemplazar archivo"
-              onClick={e => { e.stopPropagation(); inputRef.current?.click(); }}
-              className="flex items-center justify-center rounded-lg transition-colors cursor-pointer"
-              style={{ width: 32, height: 32, color: 'var(--slate)' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--canvas)'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = ''}
-            >
-              <RefreshCw size={13} />
-            </button>
-          </div>
+
+            {!readOnly && (
+              <button
+                type="button"
+                className={cardStyles.iconBtn}
+                disabled={uploading}
+                onClick={() => inputRef.current?.click()}
+                title={`Reemplazar ${label.toLowerCase()}`}
+              >
+                <RefreshCw size={13} />
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            {!readOnly ? (
+              <button
+                type="button"
+                className={cardStyles.btnUpload}
+                onClick={() => inputRef.current?.click()}
+                title={`Subir ${label.toLowerCase()}`}
+              >
+                <Upload size={13} />
+                <span>Subir</span>
+              </button>
+            ) : (
+              <span
+                style={{
+                  fontSize: 11,
+                  color: 'var(--slate)',
+                  fontStyle: 'italic',
+                  paddingRight: 6,
+                }}
+              >
+                Sin adjuntar
+              </span>
+            )}
+          </>
         )}
       </div>
-
-      {preview && localDriveId && (
-        <DrivePreviewModal driveId={localDriveId} label={label} onClose={() => setPreview(false)} />
-      )}
-    </>
+    </article>
   );
 }
 
+interface Props {
+  variant?: 'rows' | 'cards';
+  readOnly?: boolean;
+  viajeId: string;
+  driveIdGuia: string | null;
+  driveIdFactura: string | null;
+  driveIdDetraccion?: string | null;
+  numeroGuia?: string | null;
+  numeroFactura?: string | null;
+  montoDetraccion?: number | null;
+  onUploaded?: (tipo: TipoArchivo, driveId: string) => void;
+  onPreviewCustom?: (driveId: string, label: string) => void;
+}
+
 export default function ArchivosDrive({
-  variant = 'rows',
+  readOnly = false,
   viajeId,
   driveIdGuia,
   driveIdFactura,
+  driveIdDetraccion,
   numeroGuia,
   numeroFactura,
+  montoDetraccion,
   onUploaded,
+  onPreviewCustom,
 }: Props) {
+  const [internalPreview, setInternalPreview] = useState<{
+    driveId: string;
+    label: string;
+  } | null>(null);
+
+  const handlePreview = (driveId: string, label: string) => {
+    if (onPreviewCustom) {
+      onPreviewCustom(driveId, label);
+    } else {
+      setInternalPreview({ driveId, label });
+    }
+  };
+
+  const totalAdjuntos =
+    (driveIdGuia ? 1 : 0) +
+    (driveIdFactura ? 1 : 0) +
+    (driveIdDetraccion ? 1 : 0);
+
   return (
-    // Una columna en móvil: a dos columnas cada tarjeta queda en ~145px y
-    // los tres botones de acción no entran. Dos columnas desde sm.
-    <div className={variant === 'cards' ? cardStyles.grid : 'grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3'} style={{ maxWidth: 680 }}>
-      <ArchivoCard
-        variant={variant}
-        label="Guía"
-        numero={numeroGuia}
-        driveId={driveIdGuia}
-        viajeId={viajeId}
-        tipo="guias"
-        onUploaded={onUploaded}
-      />
-      <ArchivoCard
-        variant={variant}
-        label="Factura"
-        numero={numeroFactura}
-        driveId={driveIdFactura}
-        viajeId={viajeId}
-        tipo="facturas"
-        onUploaded={onUploaded}
-      />
+    <div className={cardStyles.wrapper}>
+      {/* Header with summary count and animated completion dots */}
+      <div className={cardStyles.summaryHeader}>
+        <div className={cardStyles.summaryText}>
+          <span className={cardStyles.summaryTitle}>Documentos</span>
+          <span className={cardStyles.summaryCounter}>
+            {totalAdjuntos} de 3 listos
+          </span>
+        </div>
+
+        <div
+          className={cardStyles.progressBar}
+          aria-label={`${totalAdjuntos} de 3 documentos adjuntados`}
+        >
+          <span
+            className={cardStyles.progressDot}
+            data-active={Boolean(driveIdGuia)}
+            title="Guía"
+          />
+          <span
+            className={cardStyles.progressDot}
+            data-active={Boolean(driveIdFactura)}
+            title="Factura"
+          />
+          <span
+            className={cardStyles.progressDot}
+            data-active={Boolean(driveIdDetraccion)}
+            title="Detracción"
+          />
+        </div>
+      </div>
+
+      {/* 3 Balanced and Ordered Document Rows */}
+      <div className={cardStyles.list}>
+        <ArchivoRow
+          tipo="guias"
+          label="Guía Transportista"
+          sublabel={numeroGuia ? formatDoc(numeroGuia) || 'Sin número' : 'Sin número registrado'}
+          driveId={driveIdGuia}
+          viajeId={viajeId}
+          readOnly={readOnly}
+          onUploaded={onUploaded}
+          onPreview={handlePreview}
+        />
+
+        <ArchivoRow
+          tipo="facturas"
+          label="Factura Electrónica"
+          sublabel={numeroFactura ? formatDoc(numeroFactura) || 'Sin número' : 'Pendiente de facturación'}
+          driveId={driveIdFactura}
+          viajeId={viajeId}
+          readOnly={readOnly}
+          onUploaded={onUploaded}
+          onPreview={handlePreview}
+        />
+
+        <ArchivoRow
+          tipo="detracciones"
+          label="Constancia Detracción"
+          sublabel={
+            montoDetraccion
+              ? `SPOT 4% · S/ ${montoDetraccion.toFixed(2)}`
+              : 'Banco de la Nación · 4%'
+          }
+          driveId={driveIdDetraccion ?? null}
+          viajeId={viajeId}
+          readOnly={readOnly}
+          onUploaded={onUploaded}
+          onPreview={handlePreview}
+        />
+      </div>
+
+      {/* Internal modal fallback when no custom preview is provided */}
+      {internalPreview && (
+        <DrivePreviewModal
+          driveId={internalPreview.driveId}
+          label={internalPreview.label}
+          onClose={() => setInternalPreview(null)}
+        />
+      )}
     </div>
   );
 }

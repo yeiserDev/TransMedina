@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { TrendingUp, Loader2, ArrowUpRight } from 'lucide-react';
+import Link from 'next/link';
+import { TrendingUp, Loader2, ArrowUpRight, Receipt } from 'lucide-react';
 import { Viaje } from '@/types';
+import { calcularResumenDetracciones } from '@/lib/detracciones';
 import DocumentosViajes from './DocumentosViajes';
 import DepositosModal from './DepositosModal';
 
@@ -39,6 +41,10 @@ export default function FinancialPanel({ initialViajes, vista = 'completa' }: { 
     return saldoAnterior + fletes - depositos;
   }, [viajes]);
 
+  const detraccionesResumen = useMemo(() => {
+    return calcularResumenDetracciones(viajes);
+  }, [viajes]);
+
   return (
     <div className={`flex flex-col gap-4 ${vista === 'completa' ? 'max-h-[calc(100dvh-7rem)]' : ''}`}>
 
@@ -62,6 +68,41 @@ export default function FinancialPanel({ initialViajes, vista = 'completa' }: { 
             FART · todas las cargas
           </span>
         </button>
+      ))}
+
+      {/* Detracciones SPOT */}
+      {vista !== 'documentos' && (loading ? (
+        <div className="skeleton rounded-3xl" style={{ height: 80 }} />
+      ) : (
+        <Link
+          href="/detracciones"
+          className="shrink-0 rounded-3xl p-4 text-left cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--signal)] block transition-transform active:scale-[0.99]"
+          style={{ background: 'var(--white)', boxShadow: 'var(--shadow-card)' }}
+          aria-label={`Detracciones SPOT 4%, ${fmt(detraccionesResumen.pendientesMonto)} por pagar`}
+        >
+          <span className="flex items-center gap-1.5 mb-2">
+            <Receipt size={12} style={{ color: detraccionesResumen.pendientesCount > 0 ? 'var(--signal-light)' : '#16A34A' }} />
+            <span className="eyebrow" style={{ fontSize: 9 }}>Detracciones SPOT (4%)</span>
+            <ArrowUpRight size={14} aria-hidden="true" className="ml-auto" style={{ color: 'var(--slate)' }} />
+          </span>
+          <span
+            className="block"
+            style={{
+              fontWeight: 700,
+              fontSize: 20,
+              letterSpacing: '-0.025em',
+              color: detraccionesResumen.pendientesCount > 0 ? 'var(--signal)' : '#16A34A',
+              lineHeight: 1,
+            }}
+          >
+            {fmt(detraccionesResumen.pendientesMonto)}
+          </span>
+          <span className="block text-xs mt-1.5" style={{ color: 'var(--slate)', fontWeight: 450 }}>
+            {detraccionesResumen.pendientesCount > 0
+              ? `${detraccionesResumen.pendientesCount} por pagar · Ver detalle`
+              : 'Al día · Sin pagos pendientes'}
+          </span>
+        </Link>
       ))}
 
       {verDepositos && <DepositosModal viajes={viajes} onClose={() => setVerDepositos(false)} />}

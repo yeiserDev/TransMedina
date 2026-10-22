@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const file = formData.get('file') as File;
   const viajeId = formData.get('viajeId') as string;
-  const tipo = formData.get('tipo') as 'guias' | 'facturas';
+  const tipo = formData.get('tipo') as 'guias' | 'facturas' | 'detracciones';
 
   if (!file || !viajeId || !tipo) {
     return NextResponse.json({ error: 'Faltan parámetros' }, { status: 400 });
@@ -33,10 +33,21 @@ export async function POST(req: NextRequest) {
     );
 
     const supabase = await createAdminClient();
-    const campo = tipo === 'guias' ? 'drive_id_guia' : 'drive_id_factura';
+    const campo =
+      tipo === 'guias'
+        ? 'drive_id_guia'
+        : tipo === 'facturas'
+        ? 'drive_id_factura'
+        : 'drive_id_detraccion';
+
+    const updatePayload: Record<string, string> = { [campo]: driveId };
+    if (tipo === 'detracciones') {
+      updatePayload.detraccion = 'realizado';
+    }
+
     const { error: dbError } = await supabase
       .from('viajes')
-      .update({ [campo]: driveId })
+      .update(updatePayload)
       .eq('id', viajeId);
 
     if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });

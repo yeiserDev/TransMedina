@@ -101,10 +101,10 @@ export default function DocumentosViajes({ viajes }: { viajes: Viaje[] }) {
                                 </div>
                                 <p className={styles.route}>{viaje.descripcion || 'Viaje sin descripción'}</p>
                                 <div className={styles.documents}>
-                                  {(['guia', 'factura'] as const).map(tipo => {
-                                    const nombre = tipo === 'guia' ? 'Guía' : 'Factura';
-                                    const driveId = tipo === 'guia' ? viaje.drive_id_guia : viaje.drive_id_factura;
-                                    const numero = formatDoc(tipo === 'guia' ? viaje.numero_guia : viaje.numero_factura);
+                                  {(['guia', 'factura', 'detraccion'] as const).map(tipo => {
+                                    const nombre = tipo === 'guia' ? 'Guía' : tipo === 'factura' ? 'Factura' : 'Detracción';
+                                    const driveId = tipo === 'guia' ? viaje.drive_id_guia : tipo === 'factura' ? viaje.drive_id_factura : viaje.drive_id_detraccion;
+                                    const numero = tipo === 'detraccion' ? (driveId ? 'Constancia' : '') : formatDoc(tipo === 'guia' ? viaje.numero_guia : viaje.numero_factura);
                                     return driveId ? (
                                       <button
                                         key={tipo} type="button" className={styles.document} data-type={tipo}

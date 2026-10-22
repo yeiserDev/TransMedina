@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS viajes (
   -- Google Drive file IDs
   drive_id_guia VARCHAR(255),
   drive_id_factura VARCHAR(255),
+  drive_id_detraccion VARCHAR(255),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   CHECK (tipo <> 'viaje' OR cadena IS NOT NULL)

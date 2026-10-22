@@ -6,12 +6,11 @@ import { ArrowUpRight, Eye, Pencil, Trash2, Truck, X } from 'lucide-react';
 import type { EstadoDetraccion, Viaje } from '@/types';
 import { cadenaDe } from '@/lib/cadenas';
 import { formatDoc } from '@/lib/documentos';
+import { montoDetraccion } from '@/lib/detracciones';
 import CadenaLabel from './CadenaLabel';
 import { BadgeEstado, ToggleDetraccion } from './BadgeEstado';
 import ArchivosDrive from './ArchivosDrive';
 import styles from './MobileViajeDetail.module.css';
-import docStyles from './DocumentCards.module.css';
-import IconoPdf from './IconoPdf';
 
 const dateLabel = (fecha: string) => !fecha || fecha.startsWith('1900') || !Number.isFinite(Date.parse(`${fecha}T12:00:00`)) ? 'Sin fecha' : new Date(`${fecha}T12:00:00`).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -39,7 +38,7 @@ export default function MobileViajeDetail({ viaje, readOnly, toggling, onClose, 
   onEdit: () => void; onDelete: () => void;
   onToggle: (id: string, value: EstadoDetraccion) => void;
   onPreview: (driveId: string, label: string) => void;
-  onUploaded: (tipo: 'guias' | 'facturas', driveId: string) => void;
+  onUploaded: (tipo: 'guias' | 'facturas' | 'detracciones', driveId: string) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -74,18 +73,19 @@ export default function MobileViajeDetail({ viaje, readOnly, toggling, onClose, 
           <ToggleDetraccion readOnly={readOnly} detraccion={viaje.detraccion} descripcion={viaje.descripcion} viajeId={viaje.id} onToggle={onToggle} loading={toggling} />
           <small className={styles.statusHint}>{readOnly ? 'Estado registrado manualmente' : 'Toca para cambiar el estado'}</small>
         </div></div>
-        <section className={styles.documents} aria-label="Documentos del viaje"><h3>Documentos</h3>
-          {readOnly ? <div className={docStyles.grid}>{(['guia', 'factura'] as const).map(tipo => {
-            const numero = tipo === 'guia' ? viaje.numero_guia : viaje.numero_factura;
-            const driveId = tipo === 'guia' ? viaje.drive_id_guia : viaje.drive_id_factura;
-            const label = tipo === 'guia' ? 'Guía' : 'Factura';
-            return <article key={tipo} className={docStyles.card} data-empty={!driveId}>
-              <div className={docStyles.top}><span className={docStyles.icon}><IconoPdf size={22} /></span><span>{driveId ? 'Adjunto' : 'Sin archivo'}</span></div>
-              <h4>{label}</h4><p className={docStyles.number}>{formatDoc(numero) || 'Sin número'}</p>
-              {driveId ? <button type="button" className={docStyles.primary} onClick={() => onPreview(driveId, `${label} ${numero ?? ''}`)}><Eye size={16} />Ver documento</button> : <p className={docStyles.feedback}>Sin PDF adjunto</p>}
-            </article>;
-          })}</div> : <ArchivosDrive variant="cards" viajeId={viaje.id} driveIdGuia={viaje.drive_id_guia} driveIdFactura={viaje.drive_id_factura}
-            numeroGuia={viaje.numero_guia} numeroFactura={viaje.numero_factura} onUploaded={onUploaded} />}
+        <section className={styles.documents} aria-label="Documentos del viaje">
+          <ArchivosDrive
+            readOnly={readOnly}
+            viajeId={viaje.id}
+            driveIdGuia={viaje.drive_id_guia}
+            driveIdFactura={viaje.drive_id_factura}
+            driveIdDetraccion={viaje.drive_id_detraccion}
+            numeroGuia={viaje.numero_guia}
+            numeroFactura={viaje.numero_factura}
+            montoDetraccion={montoDetraccion(viaje.descripcion)}
+            onUploaded={onUploaded}
+            onPreviewCustom={onPreview}
+          />
         </section>
       </>}
     </div>

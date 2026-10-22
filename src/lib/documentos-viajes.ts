@@ -35,7 +35,7 @@ export function agruparDocumentos(viajes: Viaje[], busqueda = ''): AnioDocumento
   const meses = new Map<string, MesDocumentos>();
 
   for (const viaje of viajes) {
-    const archivos = Number(Boolean(viaje.drive_id_guia)) + Number(Boolean(viaje.drive_id_factura));
+    const archivos = Number(Boolean(viaje.drive_id_guia)) + Number(Boolean(viaje.drive_id_factura)) + Number(Boolean(viaje.drive_id_detraccion));
     if (viaje.tipo !== 'viaje' || !archivos) continue;
     const fecha = fechaValida(viaje.fecha_traslado) ?? fechaValida(viaje.fecha_carga);
     const texto = normalizar([

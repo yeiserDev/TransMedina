@@ -19,6 +19,7 @@ export interface Viaje {
   monto: number;
   drive_id_guia: string | null;
   drive_id_factura: string | null;
+  drive_id_detraccion: string | null;
   created_at: string;
   updated_at: string;
 }

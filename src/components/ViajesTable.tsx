@@ -1,7 +1,9 @@
 'use client';
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Paperclip, ArrowDownCircle, ArrowRight, Clock, ClipboardList, Copy, Check, X, Eye } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Paperclip, ArrowDownCircle, ArrowRight, Clock, ClipboardList, Copy, Check, X, Eye, Receipt } from 'lucide-react';
 import { Viaje, ViajeInsert, FiltrosViaje, EstadoDetraccion, TipoRegistro } from '@/types';
 import { formatDoc } from '@/lib/documentos';
 import CadenaLabel from './CadenaLabel';
@@ -17,6 +19,7 @@ import DrivePreviewModal from './DrivePreviewModal';
 import MobileViajesCalendar from './MobileViajesCalendar';
 import MobileViajeDetail from './MobileViajeDetail';
 import { mesInicial } from '@/lib/calendario-viajes';
+import { montoDetraccion } from '@/lib/detracciones';
 import { CalendarDays, List, SlidersHorizontal } from 'lucide-react';
 import { format, isValid, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -133,6 +136,7 @@ interface Props {
 }
 
 export default function ViajesTable({ readOnly = false, initialViajes, secretToken }: Props) {
+  const router = useRouter();
   const [allViajes, setAllViajes] = useState<Viaje[]>(initialViajes ?? []);
   const [loading, setLoading] = useState(!initialViajes);
   const [exportando, setExportando] = useState(false);
@@ -340,6 +344,10 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
     }
     return m;
   }, [viajes, hasFilters]);
+
+  const detPendientesCount = useMemo(() => {
+    return allViajes.filter(v => v.tipo === 'viaje' && v.detraccion === 'pendiente').length;
+  }, [allViajes]);
 
   const openFacturas = async () => {
     setShowFacturas(true); setLoadingFacturas(true);
@@ -562,13 +570,22 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
 
             {/* Bloque COBRO */}
             <td className="px-3 py-2.5" style={{ borderLeft: divisor(6) }}>
-              <ToggleDetraccion
-                detraccion={v.detraccion}
-                viajeId={v.id}
-                descripcion={v.descripcion}
-                onToggle={handleToggle}
-                loading={toggling === v.id}
-              />
+              <div className="flex items-center gap-1.5 min-w-0">
+                <ToggleDetraccion
+                  detraccion={v.detraccion}
+                  viajeId={v.id}
+                  descripcion={v.descripcion}
+                  onToggle={handleToggle}
+                  loading={toggling === v.id}
+                  readOnly={readOnly}
+                />
+                {v.drive_id_detraccion && (
+                  <BotonVerDoc
+                    title="Ver constancia de detracción"
+                    onClick={() => setPreview({ driveId: v.drive_id_detraccion!, label: `Detracción S/${montoDetraccion(v.descripcion)}` })}
+                  />
+                )}
+              </div>
             </td>
             </>
             )}
@@ -635,12 +652,16 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                     viajeId={v.id}
                     driveIdGuia={v.drive_id_guia ?? null}
                     driveIdFactura={v.drive_id_factura ?? null}
+                    driveIdDetraccion={v.drive_id_detraccion ?? null}
                     numeroGuia={v.numero_guia}
                     numeroFactura={v.numero_factura}
+                    montoDetraccion={montoDetraccion(v.descripcion)}
                     onUploaded={(tipo, driveId) => {
-                      const field = tipo === 'guias' ? 'drive_id_guia' : 'drive_id_factura';
-                      setAllViajes(prev => prev.map(vj => vj.id === v.id ? { ...vj, [field]: driveId } : vj));
+                      const field = tipo === 'guias' ? 'drive_id_guia' : tipo === 'facturas' ? 'drive_id_factura' : 'drive_id_detraccion';
+                      setAllViajes(prev => prev.map(vj => vj.id === v.id ? { ...vj, [field]: driveId, ...(tipo === 'detracciones' ? { detraccion: 'realizado' } : {}) } : vj));
+                      window.dispatchEvent(new CustomEvent('viajes-updated'));
                     }}
+                    onPreviewCustom={(driveId, label) => setPreview({ driveId, label })}
                   />
               </td>
             </tr>
@@ -654,6 +675,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
     const handler = (event: Event) => {
       const action = (event as CustomEvent<string>).detail;
       if (action === 'exportar') { void handleExportExcel(); return; }
+      if (action === 'detracciones') { router.push('/detracciones'); return; }
       if (readOnly) return;
       if (action === 'viaje') openForm('viaje');
       else if (action === 'deposito') openForm('deposito');
@@ -691,6 +713,27 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
         <div className="viajes-actions flex items-center gap-2 flex-wrap">
           {/* Botón Exportar Excel — siempre disponible (tanto Admin como Solo Lectura) */}
           <ExportExcelButton total={viajes.length} loading={exportando} onExport={handleExportExcel} />
+
+          {/* Botón Detracciones — disponible para todos para consultar y gestionar */}
+          <Link href="/detracciones" className="btn-outline" style={{ gap: 6 }}>
+            <Receipt size={14} />
+            Detracciones
+            {detPendientesCount > 0 && (
+              <span
+                style={{
+                  background: 'rgba(207, 69, 0, 0.12)',
+                  color: 'var(--signal)',
+                  borderRadius: 'var(--r-pill)',
+                  padding: '1px 6px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  marginLeft: 2,
+                }}
+              >
+                {detPendientesCount}
+              </span>
+            )}
+          </Link>
 
           {!readOnly && (
             <>
@@ -1047,6 +1090,18 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                                   )}
                                 </div>
                               )}
+                              {v.drive_id_detraccion && (
+                                <div className="flex items-center gap-2">
+                                  <p>Detracción: <span style={{ fontFamily: 'monospace', color: 'var(--ink)', whiteSpace: 'nowrap' }}>Constancia SPOT</span></p>
+                                  <button
+                                    onClick={() => setPreview({ driveId: v.drive_id_detraccion!, label: `Constancia detracción S/${montoDetraccion(v.descripcion)}` })}
+                                    className="flex items-center gap-1 transition-colors"
+                                    style={{ fontSize: 10, color: 'var(--link)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                                  >
+                                    <Eye size={10} /> Ver
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           )}
                           {!readOnly && (
@@ -1055,12 +1110,16 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                                 viajeId={v.id}
                                 driveIdGuia={v.drive_id_guia ?? null}
                                 driveIdFactura={v.drive_id_factura ?? null}
+                                driveIdDetraccion={v.drive_id_detraccion ?? null}
                                 numeroGuia={v.numero_guia}
                                 numeroFactura={v.numero_factura}
+                                montoDetraccion={montoDetraccion(v.descripcion)}
                                 onUploaded={(tipo, driveId) => {
-                                  const field = tipo === 'guias' ? 'drive_id_guia' : 'drive_id_factura';
-                                  setAllViajes(prev => prev.map(vj => vj.id === v.id ? { ...vj, [field]: driveId } : vj));
+                                  const field = tipo === 'guias' ? 'drive_id_guia' : tipo === 'facturas' ? 'drive_id_factura' : 'drive_id_detraccion';
+                                  setAllViajes(prev => prev.map(vj => vj.id === v.id ? { ...vj, [field]: driveId, ...(tipo === 'detracciones' ? { detraccion: 'realizado' } : {}) } : vj));
+                                  window.dispatchEvent(new CustomEvent('viajes-updated'));
                                 }}
+                                onPreviewCustom={(driveId, label) => setPreview({ driveId, label })}
                               />
                             </div>
                           )}
@@ -1098,8 +1157,8 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
         onToggle={handleToggle}
         onPreview={(driveId, label) => setPreview({ driveId, label })}
         onUploaded={(tipo, driveId) => {
-          const field = tipo === 'guias' ? 'drive_id_guia' : 'drive_id_factura';
-          setAllViajes(prev => prev.map(v => v.id === mobileRecord.id ? { ...v, [field]: driveId } : v));
+          const field = tipo === 'guias' ? 'drive_id_guia' : tipo === 'facturas' ? 'drive_id_factura' : 'drive_id_detraccion';
+          setAllViajes(prev => prev.map(v => v.id === mobileRecord.id ? { ...v, [field]: driveId, ...(tipo === 'detracciones' ? { detraccion: 'realizado' } : {}) } : v));
           window.dispatchEvent(new CustomEvent('viajes-updated'));
         }} />}
       {confirmDelete && (
