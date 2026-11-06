@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth';
 import Navbar from '@/components/Navbar';
 import ViajesTable from '@/components/ViajesTable';
 import ClockWidget from '@/components/ClockWidget';
-import ConsejosSunat from '@/components/ConsejosSunat';
+import DetraccionesWidget from '@/components/DetraccionesWidget';
 import FinancialPanel from '@/components/FinancialPanel';
 import { createAdminClient } from '@/lib/supabase/server';
 import { Viaje } from '@/types';
@@ -27,8 +27,8 @@ export default async function HomePage() {
         <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)_200px] xl:grid-cols-[240px_minmax(0,1fr)_200px] lg:gap-4 lg:items-start">
 
           {/* Panel izquierdo — Finanzas */}
-          <aside className="hidden lg:block lg:sticky lg:top-24">
-            <FinancialPanel initialViajes={initialViajes} />
+          <aside className="dashboard-sidebar hidden lg:block lg:sticky lg:top-24 lg:max-h-[calc(100dvh-120px)] lg:overflow-hidden">
+            <FinancialPanel initialViajes={initialViajes} showStorage={isAdmin} />
           </aside>
 
           {/* Contenido principal */}
@@ -37,9 +37,9 @@ export default async function HomePage() {
           </div>
 
           {/* Panel derecho — Reloj y calendario */}
-          <aside className="hidden lg:block lg:sticky lg:top-24">
-            <ClockWidget />
-            <ConsejosSunat />
+          <aside aria-label="Calendario y detracciones" tabIndex={0} className="dashboard-sidebar scrollbar-hidden hidden lg:block lg:sticky lg:top-24 lg:max-h-[calc(100dvh-120px)] lg:overflow-y-auto lg:overscroll-contain focus-visible:outline-2 focus-visible:outline-[var(--signal)]">
+            <ClockWidget initialViajes={initialViajes} />
+            <DetraccionesWidget initialViajes={initialViajes} />
           </aside>
 
         </div>

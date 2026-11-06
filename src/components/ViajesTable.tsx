@@ -698,7 +698,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
   const filterCount = Object.values(filtros).filter(Boolean).length;
 
   return (
-    <div className="viajes-view space-y-5 pb-16" data-mobile-view={mobileView}>
+    <div className="viajes-view space-y-5 pb-16 lg:pb-0" data-mobile-view={mobileView}>
 
       {/* Header */}
       <div className="viajes-header flex items-end justify-between gap-4 pt-2 flex-wrap">

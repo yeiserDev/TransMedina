@@ -3,15 +3,18 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Viaje } from '@/types';
+import CalendarDayModal from './CalendarDayModal';
 
 const DIAS = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá'];
 const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio',
   'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-export default function ClockWidget() {
+export default function ClockWidget({ initialViajes }: { initialViajes?: Viaje[] }) {
   const [now, setNow] = useState<Date | null>(null);
   const [viewDate, setViewDate] = useState(() => new Date());
-  const [viajes, setViajes] = useState<Viaje[]>([]);
+  const [viajes, setViajes] = useState<Viaje[]>(initialViajes ?? []);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setNow(new Date()));
@@ -20,11 +23,26 @@ export default function ClockWidget() {
   }, []);
 
   useEffect(() => {
-    fetch('/api/viajes')
-      .then(r => r.json())
-      .then(data => setViajes(Array.isArray(data) ? data : []))
-      .catch(() => {});
-  }, []);
+    let controller: AbortController | undefined;
+    const refresh = async () => {
+      controller?.abort();
+      const request = new AbortController();
+      controller = request;
+      try {
+        const response = await fetch('/api/viajes', { signal: request.signal });
+        if (!response.ok) throw new Error();
+        const data = await response.json();
+        if (!Array.isArray(data)) throw new Error();
+        setViajes(data);
+        setLoadError(false);
+      } catch {
+        if (!request.signal.aborted) setLoadError(true);
+      }
+    };
+    if (!initialViajes) void refresh();
+    window.addEventListener('viajes-updated', refresh);
+    return () => { controller?.abort(); window.removeEventListener('viajes-updated', refresh); };
+  }, [initialViajes]);
 
   // Build a map: 'YYYY-MM-DD' → count of viajes
   const viajesDates = useMemo(() => {
@@ -60,9 +78,7 @@ export default function ClockWidget() {
   const handleDayClick = (d: number) => {
     const key = dayKey(d);
     if (!viajesDates.has(key)) return;
-    window.dispatchEvent(new CustomEvent('goto-viaje-date', { detail: key }));
-    // scroll main content up so user sees the table
-    document.querySelector('main')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setSelectedDate(key);
   };
 
   const cells: (number | null)[] = [];
@@ -70,6 +86,7 @@ export default function ClockWidget() {
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
   return (
+    <>
     <div className="card-stadium overflow-hidden" style={{ borderRadius: 'var(--r-panel)' }}>
 
       {/* Clock */}
@@ -113,20 +130,20 @@ export default function ClockWidget() {
           <button
             onClick={() => setViewDate(new Date(year, month - 1, 1))}
             aria-label="Mes anterior"
-            className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+            className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center transition-colors"
             style={{ color: 'var(--slate)' }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--canvas)'}
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
           >
             <ChevronLeft size={14} />
           </button>
-          <p style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-0.01em', color: 'var(--ink)' }}>
+          <p className="text-center" style={{ fontWeight: 700, fontSize: 12, letterSpacing: '-0.01em', color: 'var(--ink)' }}>
             {MESES_ES[month]} {year}
           </p>
           <button
             onClick={() => setViewDate(new Date(year, month + 1, 1))}
             aria-label="Mes siguiente"
-            className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+            className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center transition-colors"
             style={{ color: 'var(--slate)' }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--canvas)'}
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
@@ -148,7 +165,7 @@ export default function ClockWidget() {
         {/* Legend */}
         <div className="flex items-center gap-1.5 mb-2 px-0.5">
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--signal-light)', flexShrink: 0 }} />
-          <span style={{ fontSize: 9, color: 'var(--slate)', fontWeight: 450 }}>Día con viaje — clic para ir</span>
+          <span style={{ fontSize: 9, color: 'var(--slate)', fontWeight: 450 }}>Día con viaje · ver detalle</span>
         </div>
 
         {/* Day grid */}
@@ -166,7 +183,8 @@ export default function ClockWidget() {
                 aria-label={`${day} de ${MESES_ES[month]} de ${year}${hasViaje ? `, ${count} viajes. Ver viajes de este día` : ''}`}
                 onClick={() => handleDayClick(day)}
                 disabled={!hasViaje}
-                className="flex flex-col items-center justify-center transition-all duration-100"
+                aria-haspopup={hasViaje ? 'dialog' : undefined}
+                className="flex flex-col items-center justify-center transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--signal)]"
                 style={{
                   height: 38,
                   borderRadius: 10,
@@ -206,7 +224,10 @@ export default function ClockWidget() {
             );
           })}
         </div>
+        {loadError && <p role="status" className="mt-2 text-[11px]" style={{ color: 'var(--signal)' }}>No se pudo actualizar el calendario. Recarga para reintentar.</p>}
       </div>
     </div>
+    {selectedDate && <CalendarDayModal date={selectedDate} viajes={viajes.filter(v => v.tipo === 'viaje' && v.fecha_traslado === selectedDate)} onClose={() => setSelectedDate(null)} />}
+    </>
   );
 }

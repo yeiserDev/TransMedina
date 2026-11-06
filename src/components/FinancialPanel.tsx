@@ -7,12 +7,13 @@ import { Viaje } from '@/types';
 import { calcularResumenDetracciones } from '@/lib/detracciones';
 import DocumentosViajes from './DocumentosViajes';
 import DepositosModal from './DepositosModal';
+import StorageUsage from './StorageUsage';
 
 function fmt(n: number) {
   return `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`;
 }
 
-export default function FinancialPanel({ initialViajes, vista = 'completa' }: { initialViajes?: Viaje[]; vista?: 'completa' | 'cuenta' | 'documentos' }) {
+export default function FinancialPanel({ initialViajes, vista = 'completa', showStorage = false }: { initialViajes?: Viaje[]; vista?: 'completa' | 'cuenta' | 'documentos'; showStorage?: boolean }) {
   const [viajes, setViajes] = useState<Viaje[]>(initialViajes ?? []);
   const [loading, setLoading] = useState(!initialViajes);
   const [verDepositos, setVerDepositos] = useState(false);
@@ -46,7 +47,7 @@ export default function FinancialPanel({ initialViajes, vista = 'completa' }: { 
   }, [viajes]);
 
   return (
-    <div className={`flex flex-col gap-4 ${vista === 'completa' ? 'max-h-[calc(100dvh-7rem)]' : ''}`}>
+    <div className={`flex flex-col gap-4 ${vista === 'completa' ? 'max-h-[calc(100dvh-120px)]' : ''}`}>
 
       {/* Por cobrar */}
       {vista !== 'documentos' && (loading ? (
@@ -118,6 +119,7 @@ export default function FinancialPanel({ initialViajes, vista = 'completa' }: { 
       ) : (
         <DocumentosViajes viajes={viajes} />
       ))}
+      {showStorage && <StorageUsage />}
     </div>
   );
 }

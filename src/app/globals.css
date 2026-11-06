@@ -225,6 +225,52 @@ h1, h2, h3 {
 ::-webkit-scrollbar-thumb { background: var(--dust); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--slate); }
 
+/* Laterales limpios: las tarjetas conservan su fondo, sin sombras recortadas. */
+.dashboard-sidebar { --shadow-card: none; }
+.scrollbar-hidden { scrollbar-width: none; }
+.scrollbar-hidden::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+.calendar-day-dialog {
+  width: min(1480px, calc(100vw - 48px));
+  height: min(940px, calc(100dvh - 48px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 24px;
+  background: var(--white);
+  color: var(--ink);
+  overflow: hidden;
+}
+.calendar-day-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+.calendar-day-dialog button { cursor: pointer; }
+.calendar-day-dialog button:focus-visible { outline: 2px solid var(--signal); outline-offset: -2px; }
+.calendar-trip-layout { display: flex; flex-direction: column; gap: 20px; min-height: 100%; }
+.calendar-trip-summary { flex-shrink: 0; padding: 20px 24px; background: var(--white); border-radius: 24px; }
+.calendar-trip-facts { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--canvas); font-size: 13px; }
+.calendar-documents { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.calendar-document-grid { display: grid; flex: 1; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.calendar-document-card { display: flex; flex-direction: column; min-width: 0; overflow: hidden; border-radius: 20px; background: var(--white); }
+.calendar-document-preview { flex: 1; min-height: 340px; position: relative; background: var(--canvas-lifted); }
+.calendar-document-preview > iframe { position: absolute; inset: 0; }
+.calendar-document-preview > [role='status'] { position: absolute; inset: 0; }
+.calendar-document-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 28px 20px; text-align: center; color: var(--slate); }
+.calendar-empty-symbol { display: grid; place-items: center; width: 100px; height: 112px; margin-bottom: 10px; border: 1px dashed var(--dust); border-radius: 20px; background: var(--white); color: var(--slate); }
+.calendar-empty-label { margin-top: 8px; padding: 5px 12px; border-radius: var(--r-pill); background: var(--canvas); color: var(--slate); font-size: 11px; }
+@media (max-width: 1099px) {
+  .calendar-trip-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .calendar-document-grid { gap: 10px; }
+}
+@media (max-width: 639px) {
+  .calendar-day-dialog { width: calc(100vw - 16px); height: calc(100dvh - 16px); max-height: calc(100dvh - 16px); border-radius: 20px; }
+  .calendar-trip-summary { padding: 18px; }
+  .calendar-trip-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .calendar-document-grid { grid-template-columns: minmax(0, 1fr); }
+  .calendar-document-preview { min-height: 440px; }
+  .calendar-document-empty { min-height: 280px; }
+}
+
 /* Animations */
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(10px); }
