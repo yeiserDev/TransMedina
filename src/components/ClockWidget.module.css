@@ -1,0 +1,33 @@
+.calendar { background: var(--white); border-radius: 24px; padding: 18px 12px 14px; color: var(--ink); }
+.header { margin: -18px -12px 14px; padding: 16px 12px 12px; border-radius: 24px 24px 0 0; background: var(--ink); color: var(--white); }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; }
+.header h2 { font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
+.calendar button { cursor: pointer; }
+.calendar button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.today { font-size: 11px; padding: 5px 9px; border: 1px solid rgba(255,255,255,.35); border-radius: 20px; color: inherit; }
+.today:hover { background: rgba(255,255,255,.12); }
+.header button:focus-visible { outline-color: var(--white); }
+.navigation { display: flex; align-items: center; justify-content: space-between; margin: 14px 0 0; }
+.navigation button { display: grid; place-items: center; width: 28px; height: 32px; border-radius: 8px; color: var(--white); }
+.navigation button:hover { background: rgba(255,255,255,.12); }
+.navigation div { text-align: center; line-height: 1.3; }
+.navigation strong { display: block; font-size: 14px; font-weight: 650; }
+.navigation div span { display: block; font-size: 11px; color: rgba(255,255,255,.75); margin-top: 2px; }
+.grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px 2px; }
+.weekday { text-align: center; font-size: 10px; color: var(--slate); padding-bottom: 5px; }
+.day { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 34px; min-width: 0; border-radius: 8px; border: 1px solid transparent; font-size: 12px; line-height: 1; font-variant-numeric: tabular-nums; }
+.calendar .day:disabled { cursor: default; opacity: 1; }
+.day small { height: 7px; font-size: 8px; line-height: 7px; margin-top: 2px; }
+.day[data-kind='viaje'] { background: #fff0e7; color: #a43708; font-weight: 600; }
+.day[data-kind='viaje']:hover { background: #ffdfcb; }
+.day[data-kind='retorno'] { background: #fef3c7; color: #854d0e; font-weight: 600; }
+.day[data-kind='retorno']:hover { background: #fde68a; }
+.day[aria-current='date'] { border-color: var(--ink); font-weight: 700; }
+.day[aria-current='date']:not([data-kind]) { background: var(--ink); color: var(--white); }
+.footer { border-top: 1px solid #eeece9; margin: 13px 4px 0; padding-top: 11px; }
+.legend { display: flex; flex-wrap: wrap; gap: 5px 10px; font-size: 10px; color: #625e59; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { width: 6px; height: 6px; border-radius: 50%; background: #ed743e; }
+.legend i[data-kind='retorno'] { background: #d5a500; }
+.footer p { font-size: 10px; color: var(--slate); margin-top: 8px; line-height: 1.4; }
+.error { font-size: 11px; color: var(--signal); margin-top: 8px; }

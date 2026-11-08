@@ -39,7 +39,7 @@ export default async function HomePage() {
           {/* Panel derecho — Reloj y calendario */}
           <aside aria-label="Calendario y detracciones" tabIndex={0} className="dashboard-sidebar scrollbar-hidden hidden lg:block lg:sticky lg:top-24 lg:max-h-[calc(100dvh-120px)] lg:overflow-y-auto lg:overscroll-contain focus-visible:outline-2 focus-visible:outline-[var(--signal)]">
             <ClockWidget initialViajes={initialViajes} />
-            <DetraccionesWidget initialViajes={initialViajes} />
+            <DetraccionesWidget initialViajes={initialViajes} canManage={isAdmin} />
           </aside>
 
         </div>

@@ -597,6 +597,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
               }}>
                 {isDeposito ? '+' : ''}{Number(v.monto).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
               </span>
+              {v.tipo === 'viaje' && Number(v.monto) === 0 && <span className="block text-xs mt-1" style={{ color: 'var(--slate)' }}>Retorno gratis</span>}
             </td>
 
             {/* Bloque DOCS + acciones */}
@@ -1042,6 +1043,7 @@ export default function ViajesTable({ readOnly = false, initialViajes, secretTok
                             letterSpacing: '-0.02em', whiteSpace: 'nowrap',
                           }}>
                             {isDeposito ? '+' : ''}S/ {Number(v.monto).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                            {v.tipo === 'viaje' && Number(v.monto) === 0 && <span className="block text-xs font-normal" style={{ color: 'var(--slate)' }}>Retorno gratis</span>}
                           </span>
                           {abierta
                             ? <ChevronUp size={13} style={{ color: 'var(--slate)' }} />

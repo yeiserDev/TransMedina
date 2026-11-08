@@ -55,6 +55,7 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', initialCadena,
     return () => { document.body.style.overflow = overflow; previous?.focus({ preventScroll: true }); };
   }, []);
   const [loading, setLoading] = useState(false);
+  const [retornoGratis, setRetornoGratis] = useState(viaje?.tipo === 'viaje' && Number(viaje.monto) === 0);
   const [error, setError] = useState('');
   const set = (f: keyof ViajeInsert, v: unknown) => setForm(p => ({ ...p, [f]: v }));
 
@@ -67,10 +68,10 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', initialCadena,
     if (isViaje && !form.cadena) { setError('Selecciona la cadena de la carga: Ripley u Oechsle.'); return; }
     if (isSaldo   && (!form.mes || !form.monto))           { setError('Ingresa el mes y el monto.'); return; }
     if (isDeposito && (!form.fecha_traslado || !form.monto)) { setError('Ingresa la fecha y el monto.'); return; }
-    if (isViaje   && (!form.fecha_carga || !form.fecha_traslado || !form.monto)) {
+    if (isViaje   && (!form.fecha_carga || !form.fecha_traslado)) {
       setError('Completa los campos obligatorios.'); return;
     }
-    if (!Number.isFinite(form.monto) || form.monto <= 0) { setError('Ingresa un monto mayor a cero.'); return; }
+    if (!Number.isFinite(form.monto) || form.monto < 0 || (form.monto === 0 && !(isViaje && retornoGratis))) { setError(isViaje ? 'Ingresa un monto mayor a cero o marca Retorno gratis.' : 'Ingresa un monto mayor a cero.'); return; }
     setLoading(true);
     try { await onSave(form); onClose(); }
     catch (err: unknown) { setError(err instanceof Error ? err.message : 'Error al guardar.'); }
@@ -159,7 +160,7 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', initialCadena,
                   key={value}
                   type="button"
                   disabled={loading}
-                  onClick={() => { if (form.tipo !== value) { setForm(getInitial(value, form.cadena)); setError(''); } }}
+                  onClick={() => { if (form.tipo !== value) { setForm(getInitial(value, form.cadena)); setRetornoGratis(false); setError(''); } }}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm transition-all duration-150"
                   style={{
                     borderRadius: 'calc(var(--r-hero) - 10px)',
@@ -314,8 +315,14 @@ export default function ViajeForm({ viaje, initialTipo = 'viaje', initialCadena,
 
               <div>
                 <label htmlFor={`${id}-monto`} className="eyebrow block mb-2">Monto flete (S/) *</label>
-                <MontoInput key={form.tipo} id={`${id}-monto`} value={form.monto} onChange={value => set('monto', value)} />
-                <p id={`${id}-monto-ayuda`} className={styles.amountHint}>Soles · ejemplo: 1,234.50</p>
+                <label className="flex items-center gap-2 mb-3 text-sm cursor-pointer">
+                  <input type="checkbox" checked={retornoGratis} disabled={loading}
+                    onChange={e => { setRetornoGratis(e.target.checked); if (e.target.checked) set('monto', 0); setError(''); }}
+                    style={{ accentColor: 'var(--ink)', width: 16, height: 16 }} />
+                  Retorno gratis
+                </label>
+                {retornoGratis ? <input id={`${id}-monto`} className="input-field" value="S/ 0.00" readOnly aria-describedby={`${id}-monto-ayuda`} /> : <MontoInput key={form.tipo} id={`${id}-monto`} value={form.monto} onChange={value => set('monto', value)} />}
+                <p id={`${id}-monto-ayuda`} className={styles.amountHint}>{retornoGratis ? 'Este retorno se registra sin importe por cobrar.' : 'Soles · ejemplo: 1,234.50'}</p>
               </div>
             </>
           )}

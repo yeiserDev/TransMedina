@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import DetraccionesModal from './DetraccionesModal';
 import { ArrowUpRight } from 'lucide-react';
 import { calcularResumenDetracciones } from '@/lib/detracciones';
 import type { Viaje } from '@/types';
@@ -12,7 +12,8 @@ const soles = new Intl.NumberFormat('es-PE', {
 });
 const nombreMes = new Intl.DateTimeFormat('es-PE', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 
-export default function DetraccionesWidget({ initialViajes }: { initialViajes: Viaje[] }) {
+export default function DetraccionesWidget({ initialViajes, canManage = false }: { initialViajes: Viaje[]; canManage?: boolean }) {
+  const [open, setOpen] = useState(false);
   const [viajes, setViajes] = useState(initialViajes);
   const [error, setError] = useState(false);
 
@@ -60,7 +61,7 @@ export default function DetraccionesWidget({ initialViajes }: { initialViajes: V
   const mesesPendientes = [...porMes.entries()].sort(([a], [b]) => a.localeCompare(b));
 
   return (
-    <section
+    <><section
       aria-label="Resumen de detracciones"
       className="mt-3 overflow-hidden"
       style={{ background: 'var(--white)', borderRadius: 'var(--r-panel)', boxShadow: 'var(--shadow-card)' }}
@@ -68,8 +69,8 @@ export default function DetraccionesWidget({ initialViajes }: { initialViajes: V
       <div className="px-4 pt-4 pb-3">
         <h2 className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Detracciones</h2>
 
-        <div className="relative mx-auto my-1 h-24 w-24" role="img"
-          aria-label={`${resumen.pendientesCount} pendientes y ${resumen.pagadasCount} pagadas de ${resumen.totalViajes} detracciones. ${monto} por pagar.`}>
+        <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className="relative block mx-auto my-3 h-28 w-28 rounded-full cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--signal)]"
+          aria-label={`Ver ${resumen.pendientesCount} detracciones pendientes por mes y subir constancias. ${monto} por pagar.`}>
           <svg viewBox="0 0 144 144" className="h-full w-full -rotate-90" aria-hidden="true">
             <circle cx="72" cy="72" r="58" fill="none" stroke={resumen.totalViajes ? 'var(--ink)' : 'var(--canvas)'} strokeWidth="12" />
             {proporcion > 0 && (
@@ -80,9 +81,9 @@ export default function DetraccionesWidget({ initialViajes }: { initialViajes: V
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center" aria-hidden="true">
             <span className="text-3xl font-semibold tabular-nums leading-none tracking-tight" style={{ color: 'var(--ink)' }}>{resumen.pendientesCount}</span>
-            <span className="mt-1 text-xs" style={{ color: 'var(--slate)' }}>pendientes</span>
+            <span className="mt-2 text-[10px] leading-none" style={{ color: 'var(--slate)' }}>pendientes</span>
           </div>
-        </div>
+        </button>
 
         <div className="text-center" aria-live="polite" aria-atomic="true">
           <p className="text-[11px]" style={{ color: 'var(--slate)' }}>Total por pagar</p>
@@ -120,11 +121,11 @@ export default function DetraccionesWidget({ initialViajes }: { initialViajes: V
         {resumen.totalViajes > 0 && resumen.pendientesCount === 0 && <p className="mt-3 text-center text-xs" style={{ color: 'var(--slate)' }}>Estás al día con tus detracciones.</p>}
         {error && <p role="status" className="mt-3 text-xs" style={{ color: 'var(--signal)' }}>No se pudo actualizar. Se muestra el último resumen disponible.</p>}
       </div>
-      <Link href="/detracciones"
-        className="flex min-h-9 items-center justify-center gap-1.5 text-xs font-medium transition-colors hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[var(--signal)]"
+      <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog"
+        className="flex w-full min-h-9 items-center justify-center gap-1.5 text-xs font-medium transition-colors hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[var(--signal)]"
         style={{ borderTop: '1px solid var(--canvas)', color: 'var(--ink)' }}>
         Ver detracciones <ArrowUpRight size={14} aria-hidden="true" />
-      </Link>
-    </section>
+      </button>
+    </section>{open && <DetraccionesModal viajes={viajes} canManage={canManage} onClose={() => setOpen(false)} />}</>
   );
 }
