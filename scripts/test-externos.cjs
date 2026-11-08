@@ -1,0 +1,44 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const ts = require('typescript');
+const Module = require('node:module');
+const path = require('node:path');
+const filename = path.resolve('src/lib/externos.ts');
+const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } });
+const loaded = new Module(filename, module);
+loaded._compile(compiled.outputText, filename);
+const { importePorCobrar, resumenCobros, saldoViaje, validMoney, validDate, validId } = loaded.exports;
+assert.deepEqual(saldoViaje({ monto: 2300, externos_abonos: [{ monto: 800, anulado: false }] }), { cobrado: 800, pendiente: 1500 });
+assert.deepEqual(saldoViaje({ monto: 0.3, externos_abonos: [{ monto: 0.1, anulado: false }, { monto: 0.2, anulado: false }] }), { cobrado: 0.3, pendiente: 0 });
+assert.deepEqual(saldoViaje({ monto: 2300, externos_abonos: [{ monto: 800, anulado: true }, { monto: 50, anulado: false }] }), { cobrado: 50, pendiente: 2250 });
+for (const value of [NaN, Infinity, -1, 1.001, '10', null, 100000000]) assert.equal(validMoney(value), false);
+for (const value of [0, 0.01, 2300.25, 99999999.99]) assert.equal(validMoney(value), true);
+assert.equal(validDate('2026-02-29'), false);
+assert.equal(validDate('2028-02-29'), true);
+assert.equal(validDate('2026-11-06'), true);
+assert.equal(validDate('invalid'), false);
+assert.equal(validId('x'), false);
+assert.equal(validId('ad6cf138-f9b6-402c-a0cf-3fc414ed3a11'), true);
+const base = { monto: 7000, igv_modalidad: 'adicional', estado: 'realizado', externos_abonos: [] };
+assert.equal(importePorCobrar(base), 1260);
+assert.equal(importePorCobrar({ monto: 7000, igv_modalidad: 'incluido' }), 0);
+assert.equal(importePorCobrar({ monto: 5932.20, igv_modalidad: 'adicional' }), 1067.80);
+assert.equal(importePorCobrar({ monto: 0.25, igv_modalidad: 'adicional' }), 0.05);
+assert.equal(importePorCobrar({ monto: 99999999.99, igv_modalidad: 'adicional' }), 18000000);
+assert.deepEqual(saldoViaje(base), { cobrado: 0, pendiente: 1260 });
+assert.deepEqual(saldoViaje({ ...base, igv_modalidad: 'incluido' }), { cobrado: 0, pendiente: 0 });
+const partial = { ...base, externos_abonos: [{ monto: 260, anulado: false }, { monto: 500, anulado: true }] };
+assert.deepEqual(saldoViaje(partial), { cobrado: 260, pendiente: 1000 });
+const paid = { ...base, externos_abonos: [{ monto: 1260, anulado: false }] };
+const confirmedPaid = { ...base, pago_completo: true };
+assert.deepEqual(saldoViaje(confirmedPaid), { cobrado: 0, pendiente: 0 });
+assert.deepEqual(saldoViaje({ ...partial, pago_completo: true }), { cobrado: 260, pendiente: 0 });
+assert.equal(resumenCobros([confirmedPaid]).viajesIgvPendiente, 0);
+assert.equal(resumenCobros([confirmedPaid]).igvPendiente, 0);
+assert.equal(resumenCobros([confirmedPaid]).igvCobrado, 0); // No invented payment entries.
+assert.equal(saldoViaje({ ...confirmedPaid, pago_completo: false }).pendiente, 1260);
+assert.deepEqual(saldoViaje(paid), { cobrado: 1260, pendiente: 0 });
+assert.deepEqual(resumenCobros([partial, paid, { ...base, igv_modalidad: 'incluido' }, { ...base, estado: 'cancelado' }, { ...base, igv_modalidad: 'total' }]), {
+  pendiente: 800000, igvPendiente: 100000, igvCobrado: 152000, viajesIgvPendiente: 1, sinClasificar: 1,
+});
+console.log('Externos: saldos, anulaciones, precisión monetaria y validaciones OK.');

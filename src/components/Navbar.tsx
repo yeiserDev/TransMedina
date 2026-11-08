@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signIn, signOut, useSession } from 'next-auth/react';
-import { Truck, LogOut, Menu, Lock } from 'lucide-react';
+import { LogOut, Menu, Lock } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import type { Viaje } from '@/types';
 import MobileSidebar from './MobileSidebar';
+import WorkspaceSwitch from './WorkspaceSwitch';
 
 const navLinks = [
   { href: '/',             label: 'Viajes'       },
@@ -16,6 +17,7 @@ const navLinks = [
 
 export default function Navbar({ initialViajes, canManage = false }: { initialViajes?: Viaje[]; canManage?: boolean }) {
   const pathname = usePathname();
+  const external = pathname.startsWith('/externos');
   const { data: session } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -34,21 +36,11 @@ export default function Navbar({ initialViajes, canManage = false }: { initialVi
           }}
         >
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 shrink-0">
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center"
-              style={{ background: 'var(--ink)' }}
-            >
-              <Truck size={14} style={{ color: 'var(--canvas)' }} />
-            </div>
-            <span className="text-sm font-semibold tracking-tight" style={{ color: 'var(--ink)', letterSpacing: '-0.02em' }}>
-              TransMedina
-            </span>
-          </Link>
+          <WorkspaceSwitch canManage={canManage} />
 
           {/* Desktop links — centered */}
           <div className="hidden lg:flex items-center gap-1">
-            {navLinks.map(({ href, label }) => {
+            {(external ? [{ href: '/externos', label: 'Viajes externos' }] : navLinks).map(({ href, label }) => {
               const active = pathname === href;
               return (
                 <Link
@@ -108,7 +100,7 @@ export default function Navbar({ initialViajes, canManage = false }: { initialVi
           </div>
 
           {/* Mobile hamburger */}
-          <button
+          {external ? <span className="lg:hidden text-xs text-[var(--slate)]">Privado</span> : <button
             className="lg:hidden h-11 px-3 flex items-center justify-center gap-2 rounded-full transition-colors"
             style={{ color: 'var(--ink)' }}
             aria-label="Abrir menú y herramientas"
@@ -117,7 +109,7 @@ export default function Navbar({ initialViajes, canManage = false }: { initialVi
             onClick={() => setMenuOpen(true)}
           >
             <Menu size={18} /><span className="text-xs">Menú</span>
-          </button>
+          </button>}
         </nav>
 
         {menuOpen && <MobileSidebar initialViajes={initialViajes} canManage={canManage} onClose={closeMenu} />}
