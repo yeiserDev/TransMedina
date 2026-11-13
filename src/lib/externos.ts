@@ -22,6 +22,14 @@ export function importePorCobrar(v: Pick<ViajeExterno, 'monto' | 'igv_modalidad'
   if (v.igv_modalidad === 'adicional') return Math.round(importe * 18 / 100) / 100;
   return importe / 100; // Existing records keep their original accounting.
 }
+export const TASA_DETRACCION = 4; // % sobre el total del viaje con IGV
+export function totalConIgv(v: Pick<ViajeExterno, 'monto' | 'igv_modalidad'>) {
+  const importe = centimos(v.monto);
+  return (v.igv_modalidad === 'adicional' ? Math.round(importe * 118 / 100) : importe) / 100;
+}
+export function detraccionSugerida(v: Pick<ViajeExterno, 'monto' | 'igv_modalidad'>) {
+  return Math.round(centimos(totalConIgv(v)) * TASA_DETRACCION / 100) / 100;
+}
 export function resumenCobros(viajes: ViajeExterno[]) {
   return viajes.filter(v => v.estado !== 'cancelado').reduce((s, v) => {
     const balance = saldoViaje(v);

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowUpRight, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Plus, Receipt, Search, Truck, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { importePorCobrar, resumenCobros, saldoViaje, soles, type DocumentoExterno, type ViajeExterno } from '@/lib/externos';
+import { TASA_DETRACCION, centimos, detraccionSugerida, importePorCobrar, resumenCobros, saldoViaje, soles, totalConIgv, type DocumentoExterno, type ViajeExterno } from '@/lib/externos';
 import styles from './ExternosWorkspace.module.css';
 import ClienteRucFields from './ClienteRucFields';
 import { esRuc } from '@/lib/ruc';
@@ -13,7 +13,7 @@ import { uploadDocumento } from '@/lib/upload-documento';
 
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const dateLabel = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString('es-PE', { day: 'numeric', month: 'short', year: 'numeric' });
-const blank = () => ({ cliente: '', cliente_ruc: '', ruta: '', fecha: today(), monto: '', pago_completo: false, igv_modalidad: 'incluido' as NonNullable<ViajeExterno['igv_modalidad']>, estado: 'programado', notas: '', detraccion_monto: '0', detraccion_estado: 'no_aplica' });
+const blank = () => ({ cliente: '', cliente_ruc: '', ruta: '', fecha: today(), monto: '', pago_completo: false, igv_modalidad: 'incluido' as NonNullable<ViajeExterno['igv_modalidad']>, estado: 'programado', notas: '', detraccion_monto: '0', detraccion_estado: 'no_aplica', detraccion_auto: true });
 type Draft = ReturnType<typeof blank> & { id?: string };
 async function responseData(response: Response) {
   const data = await response.json();
@@ -63,15 +63,28 @@ export default function ExternosWorkspace() {
     finally { locked.current = false; setBusy(false); }
   };
   const post = async (body: unknown) => responseData(await fetch('/api/externos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
-  const open = (v: ViajeExterno) => { setSelected(v.id); setMonth(v.fecha.slice(0, 7)); setDraft(null); setShowCobros(false); setAnnul(null); setAbono({ fecha: today(), monto: '', nota: '' }); paymentId.current = null; requestAnimationFrame(() => detail.current?.focus({ preventScroll: true })); };
+  const open = (v: ViajeExterno) => { setSelected(v.id); setMonth(v.fecha.slice(0, 7)); setDraft(null); setShowCobros(false); setAnnul(null); setAbono({ fecha: today(), monto: '', nota: '' }); paymentId.current = null; requestAnimationFrame(() => {
+    const panel = detail.current;
+    if (!panel) return;
+    panel.focus({ preventScroll: true });
+    // En móvil la lista queda debajo del resumen: lleva el detalle a la vista si quedó fuera.
+    const top = panel.getBoundingClientRect().top;
+    if (top < 0 || top > window.innerHeight * 0.5) panel.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }); };
   const active = viajes.filter(v => v.estado !== 'cancelado');
   const totals = resumenCobros(viajes);
-  const visible = viajes.filter(v => `${v.cliente} ${v.cliente_ruc ?? ''} ${v.ruta}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()) && (!day || v.fecha === day) && (filter === 'todos' || (filter === 'activos' && v.estado !== 'cancelado') || (filter === 'pendientes' && v.estado !== 'cancelado' && saldoViaje(v).pendiente > 0) || (filter === 'igv' && v.estado !== 'cancelado' && v.igv_modalidad === 'adicional' && saldoViaje(v).pendiente > 0) || (filter === 'revisar' && v.estado !== 'cancelado' && (!v.igv_modalidad || v.igv_modalidad === 'total')) || (filter === 'cancelados' && v.estado === 'cancelado')));
+  const filters = [['activos', 'Activos'], ['igv', 'IGV por cobrar'], ['pendientes', 'Con saldo'], ['revisar', 'Por revisar'], ['todos', 'Todos'], ['cancelados', 'Cancelados']] as const;
+  const matches = (v: ViajeExterno, f: string) => f === 'todos' || (f === 'cancelados' ? v.estado === 'cancelado' : v.estado !== 'cancelado' && (f === 'activos' || (f === 'pendientes' && saldoViaje(v).pendiente > 0) || (f === 'igv' && v.igv_modalidad === 'adicional' && saldoViaje(v).pendiente > 0) || (f === 'revisar' && (!v.igv_modalidad || v.igv_modalidad === 'total'))));
+  const visible = viajes.filter(v => `${v.cliente} ${v.cliente_ruc ?? ''} ${v.ruta}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()) && (!day || v.fecha === day) && matches(v, filter));
   const [year, monthNumber] = month.split('-').map(Number);
   const start = new Date(year, monthNumber - 1, 1).getDay();
   const days = new Date(year, monthNumber, 0).getDate();
   const changeMonth = (delta: number) => { const d = new Date(year, monthNumber - 1 + delta, 1); setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); setDay(''); };
-  const edit = (v: ViajeExterno) => setDraft({ id: v.id, cliente: esRuc(v.cliente) ? '' : v.cliente, cliente_ruc: v.cliente_ruc ?? (esRuc(v.cliente) ? v.cliente : ''), ruta: v.ruta, fecha: v.fecha, monto: String(v.monto), pago_completo: v.pago_completo ?? false, igv_modalidad: v.igv_modalidad ?? 'total', estado: v.estado, notas: v.notas, detraccion_monto: String(v.detraccion_monto), detraccion_estado: v.detraccion_estado });
+  const edit = (v: ViajeExterno) => setDraft({ id: v.id, cliente: esRuc(v.cliente) ? '' : v.cliente, cliente_ruc: v.cliente_ruc ?? (esRuc(v.cliente) ? v.cliente : ''), ruta: v.ruta, fecha: v.fecha, monto: String(v.monto), pago_completo: v.pago_completo ?? false, igv_modalidad: v.igv_modalidad ?? 'total', estado: v.estado, notas: v.notas, detraccion_monto: String(v.detraccion_monto), detraccion_estado: v.detraccion_estado, detraccion_auto: v.detraccion_estado === 'no_aplica' || centimos(v.detraccion_monto) === centimos(detraccionSugerida(v)) });
+  // La detracción se calcula sola (4 % del total con IGV) hasta que el usuario escribe otro importe.
+  const baseDetraccion = draft ? totalConIgv({ monto: Number(draft.monto) || 0, igv_modalidad: draft.igv_modalidad }) : 0;
+  const sugerida = draft ? detraccionSugerida({ monto: Number(draft.monto) || 0, igv_modalidad: draft.igv_modalidad }) : 0;
+  const detraccion = !draft ? '' : draft.detraccion_auto ? (sugerida > 0 ? sugerida.toFixed(2) : '') : draft.detraccion_monto;
 
   return <main className={styles.workspace}>
     <header className={styles.header}><div><h1>Viajes externos</h1><p>{selectedViaje ? 'Detalle del viaje' : 'Tus clientes, documentos y cobros.'}</p></div><button className={styles.primary} disabled={loading || !!error || busy} onClick={() => { setDraft(blank()); setSelected(null); }}><Plus size={17} /> Nuevo viaje</button></header>
@@ -85,7 +98,7 @@ export default function ExternosWorkspace() {
       <div className={styles.layout}><section className={styles.main}>
       {totals.sinClasificar > 0 && <div className={styles.legacyNotice}><p>{totals.sinClasificar} {totals.sinClasificar === 1 ? 'viaje anterior conserva su saldo' : 'viajes anteriores conservan sus saldos'}. Edita su modalidad para indicar «IGV incluido» o «+ IGV». Aún no se cuentan como IGV pendiente.</p><button onClick={() => { setFilter('revisar'); setDay(''); setQuery(''); setSelected(null); setDraft(null); }}>Revisar viajes</button></div>}
         {draft ? <section className={styles.panel}><div className={styles.sectionHead}><h2>{draft.id ? 'Editar viaje' : 'Nuevo viaje externo'}</h2><button aria-label="Cerrar formulario" disabled={busy} onClick={() => setDraft(null)}><X size={18} /></button></div>
-          <form onSubmit={e => { e.preventDefault(); void run(async () => { await post({ ...draft, action: 'viaje', monto: Number(draft.monto), detraccion_monto: draft.detraccion_estado === 'no_aplica' ? 0 : Number(draft.detraccion_monto) }); setDraft(null); toast.success('Viaje guardado'); }); }}>
+          <form onSubmit={e => { e.preventDefault(); void run(async () => { await post({ ...draft, action: 'viaje', monto: Number(draft.monto), detraccion_monto: draft.detraccion_estado === 'no_aplica' ? 0 : Number(detraccion) }); setDraft(null); toast.success('Viaje guardado'); }); }}>
             <fieldset disabled={busy} className={styles.fields}>
               <ClienteRucFields key={draft.id ?? 'nuevo'} ruc={draft.cliente_ruc} nombre={draft.cliente} disabled={busy} onChange={(ruc, nombre) => setDraft(current => current ? { ...current, cliente_ruc: ruc, cliente: nombre } : null)} />
               <label>Ruta<input required maxLength={250} value={draft.ruta} onChange={e => setDraft({ ...draft, ruta: e.target.value })} placeholder="Origen — destino" /></label>
@@ -99,7 +112,14 @@ export default function ExternosWorkspace() {
               <p className={`${styles.hint} ${styles.full}`} aria-live="polite">{draft.pago_completo && draft.igv_modalidad !== 'incluido' ? 'Pagó completo. Este viaje no tendrá saldo pendiente.' : draft.igv_modalidad === 'total' ? 'Conserva el cálculo anterior: importe menos abonos. Selecciona una modalidad de IGV cuando el flete ya esté pagado.' : draft.igv_modalidad === 'incluido' ? 'El flete y su IGV ya están pagados. Adicional por cobrar: S/ 0.00.' : `El flete ya está pagado. IGV adicional (18 %): ${soles(importePorCobrar({ monto: Number(draft.monto) || 0, igv_modalidad: 'adicional' }))}, antes de descontar sus abonos.`}</p>
               <label>Estado del viaje<select value={draft.estado} onChange={e => setDraft({ ...draft, estado: e.target.value })}><option value="programado">Programado</option><option value="realizado">Realizado</option><option value="cancelado">Cancelado</option></select></label>
               <label>Detracción<select value={draft.detraccion_estado} onChange={e => setDraft({ ...draft, detraccion_estado: e.target.value })}><option value="no_aplica">No aplica</option><option value="pendiente">Pendiente</option><option value="realizado">Realizada</option></select></label>
-              {draft.detraccion_estado !== 'no_aplica' && <label>Importe de detracción (S/)<input required type="number" min="0.01" max={draft.monto || undefined} step="0.01" value={draft.detraccion_monto} onChange={e => setDraft({ ...draft, detraccion_monto: e.target.value })} /><span>Se registra por separado; no reduce el saldo.</span></label>}
+              {draft.detraccion_estado !== 'no_aplica' && <>
+                <label>Importe de detracción (S/)<input required type="number" min="0.01" max={draft.monto || undefined} step="0.01" value={detraccion} onChange={e => setDraft({ ...draft, detraccion_monto: e.target.value, detraccion_auto: false })} /><span>{draft.detraccion_auto ? 'Calculado automáticamente. Puedes corregirlo si hace falta.' : 'Importe editado a mano.'} No reduce el saldo.</span></label>
+                <div className={styles.detraccionCalc} aria-live="polite">
+                  <span>{draft.igv_modalidad === 'adicional' ? 'Flete + IGV (18 %)' : draft.igv_modalidad === 'incluido' ? 'Total con IGV' : 'Importe del viaje'}<b>{soles(baseDetraccion)}</b></span>
+                  <span>Detracción ({TASA_DETRACCION} %)<b>{soles(sugerida)}</b></span>
+                  {!draft.detraccion_auto && <button type="button" onClick={() => setDraft({ ...draft, detraccion_auto: true })}>Usar el {TASA_DETRACCION} % calculado</button>}
+                </div>
+              </>}
               <label className={styles.full}>Notas<textarea maxLength={2000} rows={3} value={draft.notas} onChange={e => setDraft({ ...draft, notas: e.target.value })} /></label>
               <div className={styles.actions}><button type="submit" className={styles.primary}>{busy ? 'Guardando…' : 'Guardar viaje'}</button><button type="button" onClick={() => setDraft(null)}>Cancelar</button></div>
             </fieldset>
@@ -132,18 +152,18 @@ export default function ExternosWorkspace() {
               finally { locked.current = false; setBusy(false); }
             }} />
           </section> : <>
-            <div className={styles.filters}><label className={styles.search}><Search size={16} /><input aria-label="Buscar cliente o ruta" placeholder="Buscar cliente o ruta" value={query} onChange={e => setQuery(e.target.value)} /></label><select aria-label="Filtrar viajes" value={filter} onChange={e => setFilter(e.target.value)}><option value="activos">Viajes activos</option><option value="igv">IGV por cobrar</option><option value="pendientes">Cualquier saldo pendiente</option><option value="revisar">Modalidad por revisar</option><option value="todos">Todos los viajes</option><option value="cancelados">Cancelados</option></select>{day && <button onClick={() => setDay('')}>{dateLabel(day)} <X size={14} /></button>}</div>
+            <div className={styles.filters}><label className={styles.search}><Search size={16} /><input aria-label="Buscar cliente o ruta" placeholder="Buscar cliente o ruta" value={query} onChange={e => setQuery(e.target.value)} /></label><div className={styles.filterChips} role="group" aria-label="Filtrar viajes">{filters.map(([id, name]) => { const count = viajes.filter(v => matches(v, id)).length; return (count > 0 || id === 'activos' || id === 'todos' || filter === id) && <button type="button" key={id} aria-pressed={filter === id} onClick={() => setFilter(id)}>{name}<span>{count}</span></button>; })}</div>{day && <button onClick={() => setDay('')}>{dateLabel(day)} <X size={14} /></button>}</div>
             {visible.length === 0 ? <section className={styles.empty}><Truck size={32} strokeWidth={1.4} /><h2>{viajes.length ? 'No hay viajes con estos filtros' : 'Tu próximo viaje empieza aquí'}</h2><p>{viajes.length ? 'Prueba otra fecha, cliente o estado.' : 'Registra el flete pagado y elige IGV incluido o + IGV. Después podrás añadir sus cobros y documentos.'}</p>{viajes.length === 0 && <button className={styles.primary} onClick={() => setDraft(blank())}><Plus size={16} /> Registrar primer viaje</button>}</section> : <div className={styles.tableWrap}>
               <table><thead><tr><th>Fecha / cliente</th><th>Ruta</th><th>Flete / IGV</th><th>Pendiente</th><th>Estado</th><th><span className="sr-only">Detalle</span></th></tr></thead><tbody>{visible.map(v => {
                 const balance = saldoViaje(v);
-                return <tr key={v.id}><td><span>{dateLabel(v.fecha)}</span><strong>{v.cliente}</strong>{v.cliente_ruc && v.cliente_ruc !== v.cliente && <small>RUC {v.cliente_ruc}</small>}</td><td>{v.ruta}</td>
-                  <td>{soles(v.monto)}<small>{v.pago_completo ? 'Pagó completo' : v.igv_modalidad === 'adicional' ? `+ IGV ${soles(importePorCobrar(v))}` : v.igv_modalidad === 'incluido' ? 'IGV incluido' : 'Modalidad por revisar'}</small></td>
-                  <td className={balance.pendiente > 0 ? styles.pending : ''}>{v.estado === 'cancelado' ? '—' : soles(balance.pendiente)}{v.igv_modalidad === 'adicional' && <small>Solo IGV</small>}</td>
+                return <tr key={v.id} onClick={() => open(v)}><td><span>{dateLabel(v.fecha)}</span><strong>{v.cliente}</strong>{v.cliente_ruc && v.cliente_ruc !== v.cliente && <small>RUC {v.cliente_ruc}</small>}</td><td>{v.ruta}</td>
+                  <td data-label="Flete">{soles(v.monto)}<small>{v.pago_completo ? 'Pagó completo' : v.igv_modalidad === 'adicional' ? `+ IGV ${soles(importePorCobrar(v))}` : v.igv_modalidad === 'incluido' ? 'IGV incluido' : 'Modalidad por revisar'}</small></td>
+                  <td data-label="Pendiente" className={balance.pendiente > 0 ? styles.pending : ''}>{v.estado === 'cancelado' ? '—' : soles(balance.pendiente)}{v.igv_modalidad === 'adicional' && <small>Solo IGV</small>}</td>
                   <td><span className={styles.status}>{v.estado === 'cancelado' ? 'Cancelado' : v.pago_completo ? 'Pagó completo' : v.igv_modalidad === 'incluido' ? 'Sin adicional' : balance.pendiente === 0 ? 'Cobrado' : balance.cobrado > 0 ? 'Abono parcial' : 'Por cobrar'}</span><small>{v.estado}</small></td>
-                  <td><button aria-label={`Ver viaje de ${v.cliente}: ${v.ruta}`} onClick={() => open(v)}>Ver <ChevronRight size={14} /></button></td></tr>;
+                  <td><button aria-label={`Ver viaje de ${v.cliente}: ${v.ruta}`} onClick={e => { e.stopPropagation(); open(v); }}><span>Ver</span> <ChevronRight size={14} /></button></td></tr>;
               })}</tbody></table></div>}
           </>}
-      </section><aside className={styles.calendar}><div className={styles.sectionHead}><h2>Calendario</h2><span>{viajes.filter(v => v.fecha.startsWith(month) && v.estado !== 'cancelado').length} viajes</span></div><div className={styles.month}><button aria-label="Mes anterior" onClick={() => changeMonth(-1)}><ChevronLeft size={17} /></button><strong>{new Date(year, monthNumber - 1, 1).toLocaleDateString('es-PE', { month: 'long', year: 'numeric' })}</strong><button aria-label="Mes siguiente" onClick={() => changeMonth(1)}><ChevronRight size={17} /></button></div><div className={styles.days}>{['Do','Lu','Ma','Mi','Ju','Vi','Sá'].map(d => <span key={d}>{d}</span>)}{Array.from({ length: start }, (_, i) => <span key={`blank-${i}`} />)}{Array.from({ length: days }, (_, i) => { const date = `${month}-${String(i + 1).padStart(2, '0')}`; const count = active.filter(v => v.fecha === date).length; return <button key={date} disabled={busy || !!draft} aria-label={`${dateLabel(date)}, ${count} viajes`} aria-pressed={day === date || selectedViaje?.fecha === date} data-today={date === today()} data-trips={count > 0} onClick={() => { setDay(date === day ? '' : date); setDraft(null); setSelected(null); }}>{i + 1}{count > 0 && <i />}</button>; })}</div><p>Los puntos indican días con viajes.</p><button className={styles.today} onClick={() => { setMonth(today().slice(0, 7)); setDay(''); }}>Volver al mes actual</button><div className={styles.privacy}><h3>Tu operación externa</h3><p>Solo tú tienes acceso a los viajes, abonos y documentos de esta sección.</p></div></aside></div>
+      </section><aside className={styles.calendar}><div className={styles.sectionHead}><h2>Calendario</h2><span>{viajes.filter(v => v.fecha.startsWith(month) && v.estado !== 'cancelado').length} viajes</span></div><div className={styles.month}><button aria-label="Mes anterior" onClick={() => changeMonth(-1)}><ChevronLeft size={17} /></button><strong>{new Date(year, monthNumber - 1, 1).toLocaleDateString('es-PE', { month: 'long', year: 'numeric' })}</strong><button aria-label="Mes siguiente" onClick={() => changeMonth(1)}><ChevronRight size={17} /></button></div><div className={styles.days}>{['Do','Lu','Ma','Mi','Ju','Vi','Sá'].map(d => <span key={d}>{d}</span>)}{Array.from({ length: start }, (_, i) => <span key={`blank-${i}`} />)}{Array.from({ length: days }, (_, i) => { const date = `${month}-${String(i + 1).padStart(2, '0')}`; const count = active.filter(v => v.fecha === date).length; return <button key={date} disabled={busy || !!draft} aria-label={`${dateLabel(date)}, ${count} viajes`} aria-pressed={day === date || selectedViaje?.fecha === date} data-today={date === today()} data-trips={count > 0} onClick={() => { setDay(date === day ? '' : date); setDraft(null); setSelected(null); }}>{i + 1}{count > 1 && <i>{count}</i>}</button>; })}</div><p><i /> Días con viajes. Toca uno para ver solo esa fecha.</p><button className={styles.today} onClick={() => { setMonth(today().slice(0, 7)); setDay(''); }}>Volver al mes actual</button><div className={styles.privacy}><h3>Tu operación externa</h3><p>Solo tú tienes acceso a los viajes, abonos y documentos de esta sección.</p></div></aside></div>
     </>}
     {preview && <ExternoDocumentPreview key={preview.id} document={preview} onClose={() => setPreview(null)} />}
   </main>;
